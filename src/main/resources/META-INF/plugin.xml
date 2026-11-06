@@ -5,6 +5,7 @@
     <description><![CDATA[
     <p>Merge several Git branches into one with a single merge commit (an <b>octopus merge</b>),
     with a conflict preview and conflict resolution in the regular IDE merge dialog.</p>
+    <p><img src="https://raw.githubusercontent.com/michaelalexeevweb/jetbrains-octopus-merge/master/docs/octopus-merge-dialog.jpg" width="600" alt="Octopus Merge dialog"></p>
 
     <h3>Where to find it</h3>
     <ul>
@@ -50,6 +51,11 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <h3>0.2.1</h3>
+    <ul>
+      <li>Fixed: the dialog did not open (NullPointerException in the Repository and Merge into fields)</li>
+      <li>Screenshot in the plugin description</li>
+    </ul>
     <h3>0.2.0</h3>
     <ul>
       <li>Octopus button on the main toolbar, the Git branches toolbar and the branch popup</li>

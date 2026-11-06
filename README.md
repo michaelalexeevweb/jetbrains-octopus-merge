@@ -3,6 +3,8 @@
 JetBrains IDE plugin: merge several Git branches into one with a single merge commit
 (an octopus merge), with conflict preview and conflict resolution in the IDE merge dialog.
 
+![Octopus Merge dialog](docs/octopus-merge-dialog.jpg)
+
 ## Install
 
 1. Download `JetbrainsOctopusMerge-<version>.zip` from the [latest release](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest).

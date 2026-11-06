@@ -65,11 +65,14 @@ internal class OctopusMergeDialog(
 
     private val repositoryCombo = ComboBoxWithAutoCompletion(MutableCollectionComboBoxModel(repositoriesByName.keys.toList()), project).apply {
         setPlaceholder("Type to search repositories")
+        // The constructor assigns the editor without telling the UI delegate; reinstall the UI so it picks it up.
+        updateUI()
         selectedItem = nameOf(initialRepository)
     }
     private val targetModel = MutableCollectionComboBoxModel<String>()
     private val targetCombo = ComboBoxWithAutoCompletion(targetModel, project).apply {
         setPlaceholder("Type to search local branches")
+        updateUI()
     }
     private val filterField = SearchTextField(false)
     private val branchList = CheckBoxList<String>()

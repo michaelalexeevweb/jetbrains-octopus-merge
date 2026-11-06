@@ -48,6 +48,7 @@ internal class OctopusMergeTask(
             MergeStatus.PREPARED -> lines += "Merge of ${outcome.merged.joinToString()} is staged. Commit to finish it."
         }
         if (outcome.conflictedBranches.isNotEmpty()) lines += "Conflicts resolved in ${outcome.conflictedBranches.joinToString()}"
+        if (outcome.preResolvedBranches.isNotEmpty()) lines += "Resolved in advance: ${outcome.preResolvedBranches.joinToString()}"
         if (outcome.skipped.isNotEmpty()) lines += "Already merged, skipped: ${outcome.skipped.joinToString()}"
         if (outcome.deletedBranches.isNotEmpty()) lines += "Deleted: ${outcome.deletedBranches.keys.joinToString()}"
         if (outcome.notDeletedBranches.isNotEmpty()) lines += "Not deleted: ${outcome.notDeletedBranches.joinToString()}"

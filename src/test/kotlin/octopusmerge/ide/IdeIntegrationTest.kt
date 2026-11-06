@@ -14,6 +14,7 @@ import octopusmerge.core.MergeOptions
 import octopusmerge.core.MergeRequest
 import octopusmerge.core.MergeStatus
 import octopusmerge.core.OctopusMerger
+import octopusmerge.core.Resolutions
 import octopusmerge.core.TestRepo
 import octopusmerge.core.output
 
@@ -23,7 +24,7 @@ class IdeIntegrationTest : BasePlatformTestCase() {
     fun `test action is registered in the git menus`() {
         val manager = ActionManager.getInstance()
         assertInstanceOf(manager.getAction(ACTION_ID), OctopusMergeAction::class.java)
-        for (groupId in listOf("Git.MainMenu", "Git.Branch", "Git.Log.ContextMenu")) {
+        for (groupId in listOf("Git.MainMenu", "Git.Branch", "Git.Log.ContextMenu", "MainToolbarRight", "Git.Log.Branches.Toolbar.Actions", "Git.Branches.List")) {
             val group = manager.getAction(groupId)
             assertNotNull("group $groupId exists", group)
             val children = (group as DefaultActionGroup).childActionsOrStubs.map { manager.getId(it) }
@@ -37,6 +38,14 @@ class IdeIntegrationTest : BasePlatformTestCase() {
         assertEquals(children.indexOf("Git.Merge") + 1, children.indexOf(ACTION_ID))
     }
 
+    fun `test icon is bundled`() {
+        assertNotNull(OctopusMergeAction::class.java.getResource("/icons/octopusMerge.svg"))
+        assertNotNull(OctopusMergeAction::class.java.getResource("/icons/octopusMerge_dark.svg"))
+        assertNotNull(manager().getAction(ACTION_ID).templatePresentation.icon)
+    }
+
+    private fun manager() = ActionManager.getInstance()
+
     fun `test notification group is registered`() {
         assertNotNull(NotificationGroupManager.getInstance().getNotificationGroup(OctopusMergeTask.GROUP))
     }
@@ -44,6 +53,29 @@ class IdeIntegrationTest : BasePlatformTestCase() {
     fun `test the git plugin knows every command the merger runs`() {
         val missing = GitExecutor.COMMANDS_USED - IdeGitExecutor.supportedCommands()
         assertTrue("unsupported by the IDE: $missing", missing.isEmpty())
+    }
+
+    fun `test resolutions made in the preview are used through the IDE executor`() {
+        TestRepo().use { repo ->
+            repo.branch("b1")
+            repo.branch("b2", files = mapOf("file.txt" to "from b2\n"))
+            repo.branch("b3", files = mapOf("file.txt" to "from b3\n"))
+            val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(repo.dir)!!
+            val analyzer = MergeAnalyzer(IdeGitExecutor(project, root, quiet = true))
+            val resolutions = Resolutions()
+            val order = listOf("b1", "b2", "b3")
+
+            val conflict = analyzer.analyze("main", order)[2].conflicts.single()
+            assertEquals("from b2\n", String(analyzer.blob(conflict.ours!!)))
+            resolutions.put(conflict, "both\n".toByteArray())
+            assertEquals(BranchState.RESOLVED, analyzer.analyze("main", order, resolutions = resolutions)[2].state)
+
+            val outcome = OctopusMerger(IdeGitExecutor(project, root), ConflictResolver { fail("dialog must not open"); false })
+                .merge(MergeRequest("main", order, resolutions = resolutions))
+
+            assertEquals(listOf("b3"), outcome.preResolvedBranches)
+            assertEquals("both\n", repo.read("file.txt"))
+        }
     }
 
     fun `test settings round trip`() {

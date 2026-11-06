@@ -38,7 +38,7 @@ internal class OctopusMergeAction : DumbAwareAction() {
         val options = dialog.options
         OctopusMergeSettings.save(options)
         FileDocumentManager.getInstance().saveAllDocuments()
-        val request = MergeRequest(dialog.target, dialog.branches, dialog.message, options)
+        val request = MergeRequest(dialog.target, dialog.branches, dialog.message, options, dialog.resolutions)
         OctopusMergeTask(project, dialog.repository, request).queue()
     }
 

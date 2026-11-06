@@ -1,16 +1,68 @@
 <idea-plugin>
     <id>octopusmerge</id>
     <name>Octopus Merge</name>
-    <vendor>Michael Alexeev</vendor>
+    <vendor url="https://github.com/michaelalexeevweb/jetbrains-octopus-merge">Michael Alexeev</vendor>
     <description><![CDATA[
-    Merge several Git branches into one with a single merge commit (octopus merge).
+    <p>Merge several Git branches into one with a single merge commit (an <b>octopus merge</b>),
+    with a conflict preview and conflict resolution in the regular IDE merge dialog.</p>
+
+    <h3>Where to find it</h3>
     <ul>
-      <li>Pick the target branch and any number of branches to merge, with search</li>
-      <li>Branches selected in the Git tool window are pre-checked</li>
-      <li>Conflicts are resolved in the standard IDE merge dialog, branch by branch;
-          the result is still one commit whose parents are the target and every merged branch</li>
+      <li><b>Git | Octopus Merge…</b>, right below <i>Merge…</i></li>
+      <li>The octopus button on the main toolbar, on the branches toolbar of the Git tool window (<code>⌘9</code> / <code>Alt+9</code>)
+          and in the branch popup</li>
+      <li>Right-click selected branches or commits in the Git tool window: they come pre-checked</li>
+      <li><i>Find Action</i>: type <code>Octopus</code></li>
     </ul>
+
+    <h3>How to use</h3>
+    <ol>
+      <li><b>Merge into</b>: type or pick the target branch.</li>
+      <li>Check the branches to merge; the search field filters by every typed word.</li>
+      <li>Arrange the <b>Merge order</b> with ↑/↓. Each branch shows what will happen:
+          ✓ commits it brings, ⚠ expected conflicts and their files, or <i>already merged</i>.
+          The preview never touches your working tree.</li>
+      <li>Double-click a branch with ⚠ to <b>resolve its conflicts right away</b>, before merging.</li>
+      <li>Edit the message if needed and press <b>Merge</b>.</li>
+    </ol>
+
+    <h3>Conflicts</h3>
+    <p><b>Resolve in advance.</b> Double-click a conflicting branch in <i>Merge order</i> (or press Enter): the regular
+    three-way merge window opens on in-memory copies, with the target plus every branch merged before it on the left.
+    The branch turns ✓ <i>resolved in advance</i>, later branches are predicted against your result, and the merge
+    applies it without stopping. A resolution is used only for the exact conflict it was made for: change the order
+    or update a branch and you are simply asked again.</p>
+    <p>Plain <code>git merge</code> refuses an octopus merge as soon as anything conflicts. This plugin merges the branches
+    one by one instead and opens the standard <i>Conflicts</i> dialog for every conflicting branch. Afterwards the
+    intermediate commits are replaced by one commit whose parents are the target and every merged branch:
+    the history looks exactly like an octopus merge. Cancel at any point and everything is rolled back.
+    Or let git decide with <code>-X ours</code> / <code>-X theirs</code>.</p>
+
+    <h3>Options</h3>
+    <ul>
+      <li>Stash local changes and restore them afterwards</li>
+      <li><code>--no-commit</code>: stage the result and commit it yourself, still as an octopus merge</li>
+      <li><code>--log</code>, <code>--signoff</code>, <code>-S</code> (GPG), <code>--no-verify</code>, <code>--allow-unrelated-histories</code></li>
+      <li>Delete merged local branches</li>
+    </ul>
+    <p>After the merge, the notification offers <b>Undo</b>: the target returns to its previous commit and deleted
+    branches are recreated.</p>
     ]]></description>
+
+    <change-notes><![CDATA[
+    <h3>0.2.0</h3>
+    <ul>
+      <li>Octopus button on the main toolbar, the Git branches toolbar and the branch popup</li>
+      <li>Resolve conflicts in advance: double-click a conflicting branch in the preview</li>
+      <li>Type to search in the <i>Repository</i> and <i>Merge into</i> fields</li>
+      <li>Plugin and action icons</li>
+    </ul>
+    <h3>0.1.0</h3>
+    <ul>
+      <li>First release: octopus merge dialog, conflict preview, step-by-step conflict resolution,
+          merge options, auto-stash, undo</li>
+    </ul>
+    ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.platform.vcs</depends>
@@ -25,10 +77,14 @@
                 class="octopusmerge.ide.OctopusMergeAction"
                 text="Octopus Merge…"
                 description="Merge several branches into one with a single merge commit"
-                icon="AllIcons.Vcs.Merge">
+                icon="/icons/octopusMerge.svg">
             <add-to-group group-id="Git.MainMenu" anchor="after" relative-to-action="Git.Merge"/>
             <add-to-group group-id="Git.Branch" anchor="last"/>
             <add-to-group group-id="Git.Log.ContextMenu" anchor="last"/>
+            <!-- Buttons: main toolbar (right), branches toolbar in the Git tool window, branch widget popup -->
+            <add-to-group group-id="MainToolbarRight" anchor="first"/>
+            <add-to-group group-id="Git.Log.Branches.Toolbar.Actions" anchor="last"/>
+            <add-to-group group-id="Git.Branches.List" anchor="last"/>
         </action>
     </actions>
 </idea-plugin>

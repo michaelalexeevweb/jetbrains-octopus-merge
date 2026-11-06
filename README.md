@@ -21,6 +21,10 @@ Requires an IntelliJ-based IDE 2026.3 or newer (build 263+) with the bundled Git
 - **Merge order**: checked branches in order, reorder with ↑/↓. Each branch shows a preview:
   commits it brings, conflicts expected at its position (computed with `git merge-tree`, nothing is touched),
   or "already merged".
+- **Resolve in advance**: double-click a branch with expected conflicts (or press Enter). The IDE merge window
+  opens on in-memory copies; the branch turns ✓ "resolved in advance" and the merge applies your result without
+  stopping. A resolution is tied to the exact conflict (same file, same three versions): after reordering or a branch
+  update it is not used and you are asked again.
 - **Message**: follows the selection until edited.
 - **Options** (remembered):
 
@@ -39,7 +43,7 @@ Requires an IntelliJ-based IDE 2026.3 or newer (build 263+) with the bundled Git
 
 1. Branches already contained in the target or in another selected branch are skipped.
 2. Native `git merge` with all branches (octopus strategy). Done if nothing conflicts.
-3. Otherwise branches are merged one by one; each conflict opens the IDE merge dialog.
+3. Otherwise branches are merged one by one; conflicts resolved in advance are applied, the rest open the IDE merge dialog.
    The step commits are then replaced by one commit (`git commit-tree`) whose parents are the target
    and every branch: the same history an octopus merge gives. Hooks run as for a normal merge.
 4. Cancel or failure restores the target, the checked-out branch and stashed changes.

@@ -38,6 +38,8 @@ data class MergeRequest(
     /** Null means the default "Merge branches ... into target" subject. */
     val message: String? = null,
     val options: MergeOptions = MergeOptions(),
+    /** Conflicts resolved in the preview; applied automatically when the same conflict occurs. */
+    val resolutions: Resolutions = Resolutions(),
 )
 
 enum class MergeStatus {
@@ -67,8 +69,10 @@ data class MergeOutcome(
     val commit: String?,
     val merged: List<String>,
     val skipped: List<String>,
-    /** Branches whose step needed conflict resolution. */
+    /** Branches whose step needed conflict resolution in the merge dialog. */
     val conflictedBranches: List<String>,
+    /** Branches whose conflicts were all settled by resolutions made in the preview. */
+    val preResolvedBranches: List<String>,
     val stash: StashStatus,
     /** Deleted local branches with the commit each pointed to, so Undo can recreate them. */
     val deletedBranches: Map<String, String>,

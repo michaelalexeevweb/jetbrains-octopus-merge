@@ -10,13 +10,16 @@ import com.intellij.openapi.vfs.VirtualFile
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
+import git4idea.config.GitExecutableManager
 import git4idea.merge.GitConflictResolver
 import git4idea.repo.GitRepository
 import octopusmerge.core.ConflictResolver
 import octopusmerge.core.ConflictStep
 import octopusmerge.core.GitExecutor
 import octopusmerge.core.GitResult
+import octopusmerge.core.MergeException
 import octopusmerge.core.MergeProgress
+import octopusmerge.core.ProcessGitExecutor
 import java.io.File
 
 /** Runs git through the IDE Git plugin: configured executable, auth helpers, Git console. */
@@ -40,6 +43,16 @@ internal class IdeGitExecutor(
         return GitResult(result.exitCode, result.output, result.errorOutput)
     }
 
+    /**
+     * Plumbing the Git plugin does not wrap (`read-tree`, `write-tree`, stdin, private index): runs the
+     * git executable configured in the IDE directly. Only read-only or object-writing commands go here.
+     */
+    override fun runRaw(args: List<String>, input: ByteArray?, env: Map<String, String>): GitResult {
+        val executable = GitExecutableManager.getInstance().getExecutable(project)
+        if (!executable.isLocal) throw MergeException("This operation needs a local git executable; ${executable.exePath} is not one.")
+        return ProcessGitExecutor(root, executable.exePath, executable.getLocaleEnv()).runRaw(args, input, env)
+    }
+
     companion object {
         private val COMMANDS: Map<String, GitCommand> = GitCommand::class.java.fields
             .filter { it.type == GitCommand::class.java }
@@ -50,7 +63,7 @@ internal class IdeGitExecutor(
         fun supportedCommands(): Set<String> = COMMANDS.keys
 
         /** Queries that would only clutter the Git console. */
-        private val READ_ONLY = setOf("rev-parse", "merge-base", "status", "diff", "rev-list", "log", "config", "version", "merge-tree", "commit-tree")
+        private val READ_ONLY = setOf("rev-parse", "merge-base", "status", "diff", "rev-list", "log", "config", "version", "commit-tree")
     }
 }
 

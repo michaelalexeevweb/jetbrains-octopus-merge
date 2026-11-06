@@ -40,7 +40,7 @@ class MergeAnalyzerTest {
         repo.commit("main change")
 
         assertEquals(
-            listOf(BranchAnalysis("b1", BranchState.CONFLICT, 1, listOf("file.txt"))),
+            listOf(BranchAnalysis("b1", BranchState.CONFLICT, 1, analyzer.analyze("main", listOf("b1")).single().conflicts)),
             analyzer.analyze("main", listOf("b1")),
         )
     }

@@ -42,6 +42,32 @@ class GitRepo(val git: GitExecutor) {
     fun unmergedFiles(): List<String> =
         git.output("diff", "--name-only", "--diff-filter=U").lines().filter { it.isNotBlank() }.distinct()
 
+    /** Unmerged files of the merge in progress with their three index versions. */
+    fun unmergedConflicts(): List<FileConflict> = FileConflict.parse(git.raw(listOf("ls-files", "-u", "-z")).records)
+
+    fun blob(oid: String): ByteArray = git.raw(listOf("cat-file", "blob", oid)).bytes
+
+    /**
+     * Writes [tree] with some files replaced, using a private index so the real one is untouched.
+     * Returns the new tree id.
+     */
+    fun treeWithFiles(tree: String, files: Map<String, Pair<String, ByteArray>>): String {
+        val index = gitPath("octopus-merge-${System.nanoTime()}.index")
+        val env = mapOf("GIT_INDEX_FILE" to index.absolutePath)
+        try {
+            git.raw(listOf("read-tree", tree), env = env)
+            for ((path, file) in files) {
+                val (mode, content) = file
+                val blob = String(git.raw(listOf("hash-object", "-w", "--stdin"), input = content).bytes).trim()
+                git.raw(listOf("update-index", "--add", "--cacheinfo", "$mode,$blob,$path"), env = env)
+            }
+            return String(git.raw(listOf("write-tree"), env = env).bytes).trim()
+        } finally {
+            index.delete()
+            File(index.path + ".lock").delete()
+        }
+    }
+
     fun commitCount(from: String, to: String): Int = git.output("rev-list", "--count", "$from..$to").toInt()
 
     fun subjects(from: String, to: String): List<String> =

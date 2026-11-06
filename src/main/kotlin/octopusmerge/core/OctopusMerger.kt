@@ -60,7 +60,7 @@ class OctopusMerger(
                 val stash = if (stashed) popStash() else StashStatus.NOT_USED
                 return MergeOutcome(
                     MergeStatus.NOTHING_TO_MERGE, request.target, originalHead, null,
-                    emptyList(), skipped, emptyList(), stash, emptyMap(), emptyList(),
+                    emptyList(), skipped, emptyList(), emptyList(), stash, emptyMap(), emptyList(),
                 )
             }
 
@@ -88,7 +88,7 @@ class OctopusMerger(
 
             return MergeOutcome(
                 merged.status, request.target, originalHead, merged.commit,
-                toMerge.map { it.first }, skipped, merged.conflicted, stash, deleted, notDeleted,
+                toMerge.map { it.first }, skipped, merged.conflicted, merged.preResolved, stash, deleted, notDeleted,
             )
         } catch (e: Throwable) {
             val notes = mutableListOf<String>()
@@ -129,7 +129,14 @@ class OctopusMerger(
         progress.filesChanged()
     }
 
-    private class Merged(val status: MergeStatus, val commit: String?, val conflicted: List<String>)
+    private class Merged(
+        val status: MergeStatus,
+        val commit: String?,
+        val conflicted: List<String> = emptyList(),
+        val preResolved: List<String> = emptyList(),
+    )
+
+    private class Steps(val conflicted: List<String>, val preResolved: List<String>)
 
     private fun performMerge(
         request: MergeRequest,
@@ -154,12 +161,12 @@ class OctopusMerger(
             addAll(names)
         })
         if (native.success) {
-            return if (options.noCommit) Merged(MergeStatus.PREPARED, null, emptyList())
-            else Merged(MergeStatus.COMMITTED, repo.head(), emptyList())
+            return if (options.noCommit) Merged(MergeStatus.PREPARED, null)
+            else Merged(MergeStatus.COMMITTED, repo.head())
         }
 
         restoreHead(originalHead)
-        val conflicted = mergeOneByOne(request, toMerge)
+        val steps = mergeOneByOne(request, toMerge)
 
         progress.step("Creating merge commit")
         val tree = git.output("rev-parse", "HEAD^{tree}")
@@ -171,7 +178,7 @@ class OctopusMerger(
             repo.gitPath("MERGE_HEAD").writeText(hashes.joinToString("\n", postfix = "\n"))
             repo.gitPath("MERGE_MSG").writeText(message + "\n")
             repo.gitPath("MERGE_MODE").writeText("no-ff")
-            return Merged(MergeStatus.PREPARED, null, conflicted)
+            return Merged(MergeStatus.PREPARED, null, steps.conflicted, steps.preResolved)
         }
 
         val hooks = !options.noVerify && (repo.version() ?: GitVersion(0, 0, 0)) >= GitVersion.HOOK_RUN
@@ -187,13 +194,13 @@ class OctopusMerger(
         })
         git.output("update-ref", "-m", "merge ${names.joinToString(" ")}: Merge made by octopus-merge", "HEAD", commit, stepHead)
         if (hooks) git.run("hook", "run", "--ignore-missing", "post-merge", "--", "0")
-        return Merged(MergeStatus.COMMITTED, commit, conflicted)
+        return Merged(MergeStatus.COMMITTED, commit, steps.conflicted, steps.preResolved)
     }
 
-    /** Returns the branches that needed conflict resolution. */
-    private fun mergeOneByOne(request: MergeRequest, toMerge: List<Pair<String, String>>): List<String> {
+    private fun mergeOneByOne(request: MergeRequest, toMerge: List<Pair<String, String>>): Steps {
         val options = request.options
         val conflicted = mutableListOf<String>()
+        val preResolved = mutableListOf<String>()
         toMerge.forEachIndexed { index, (name, hash) ->
             progress.checkCanceled()
             progress.step("Merging $name (${index + 1}/${toMerge.size})")
@@ -206,8 +213,15 @@ class OctopusMerger(
             })
             if (step.success) return@forEachIndexed
 
+            if (repo.unmergedFiles().isEmpty()) throw MergeException("Merging $name failed:\n${step.errorText}")
+
+            applyResolutions(request.resolutions)
             val files = repo.unmergedFiles()
-            if (files.isEmpty()) throw MergeException("Merging $name failed:\n${step.errorText}")
+            if (files.isEmpty()) {
+                git.output("commit", "--no-verify", "--no-gpg-sign", "--no-edit")
+                preResolved += name
+                return@forEachIndexed
+            }
 
             progress.filesChanged()
             val resolvedAll = resolver.resolve(ConflictStep(name, request.target, index + 1, toMerge.size, files))
@@ -218,7 +232,18 @@ class OctopusMerger(
             git.output("commit", "--no-verify", "--no-gpg-sign", "--no-edit")
             conflicted += name
         }
-        return conflicted
+        return Steps(conflicted, preResolved)
+    }
+
+    /** Writes and stages every unmerged file whose exact conflict was resolved in the preview. */
+    private fun applyResolutions(resolutions: Resolutions) {
+        if (resolutions.isEmpty()) return
+        val applicable = repo.unmergedConflicts().filter { it.isContentConflict && resolutions.has(it) }
+        if (applicable.isEmpty()) return
+        for (conflict in applicable) {
+            java.io.File(git.root, conflict.path).writeBytes(resolutions.get(conflict)!!)
+        }
+        git.output(listOf("add", "--") + applicable.map { it.path })
     }
 
     private fun runHook(name: String, vararg args: String) {

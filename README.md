@@ -3,6 +3,13 @@
 JetBrains IDE plugin: merge several Git branches into one with a single merge commit
 (an octopus merge), with conflict preview and conflict resolution in the IDE merge dialog.
 
+## Install
+
+1. Download `JetbrainsOctopusMerge-<version>.zip` from the [latest release](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest).
+2. Settings → Plugins → ⚙ → Install Plugin from Disk… → choose the zip → restart the IDE.
+
+Requires an IntelliJ-based IDE 2026.3 or newer (build 263+) with the bundled Git plugin.
+
 ## Where
 
 - **Git → Octopus Merge…** (right after Merge…)
@@ -50,5 +57,3 @@ Needs JDK 25 (or the JBR bundled with the IDE). The IDE to build against is `loc
 ./gradlew verifyPlugin  # JetBrains Plugin Verifier against the local IDE
 ./gradlew runIde        # sandbox IDE with the plugin
 ```
-
-Install: Settings → Plugins → ⚙ → Install Plugin from Disk… → the zip.

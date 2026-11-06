@@ -49,12 +49,10 @@ class BranchSelection(localBranches: Collection<String>, remoteBranches: Collect
         ordered.add(newIndex, branch)
     }
 
-    /** Branches to list for a search text: everything except the target, case-insensitive substring match. */
-    fun visibleBranches(filter: String): List<String> {
-        val words = filter.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-        return allBranches.filter { branch ->
-            branch != target && words.all { branch.contains(it, ignoreCase = true) }
-        }
+    /** Branches to list for a search text: everything except the target that the [NameMatcher] accepts. */
+    fun visibleBranches(filter: String, layout: (Char) -> Char? = { null }): List<String> {
+        val matcher = NameMatcher(filter, layout)
+        return allBranches.filter { branch -> branch != target && matcher.matches(branch) }
     }
 
     fun validate(): String? = when {

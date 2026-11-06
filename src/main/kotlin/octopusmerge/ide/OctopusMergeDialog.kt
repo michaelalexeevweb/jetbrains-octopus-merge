@@ -26,9 +26,7 @@ import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.util.Alarm
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import com.intellij.ui.MutableCollectionComboBoxModel
 import git4idea.repo.GitRepository
-import git4idea.ui.ComboBoxWithAutoCompletion
 import octopusmerge.core.RepositoryNames
 import octopusmerge.core.BranchAnalysis
 import octopusmerge.core.BranchSelection
@@ -63,17 +61,14 @@ internal class OctopusMergeDialog(
         RepositoryNames.shortNames(repositories.map { it.root.path }).zip(repositories).toMap()
     private var currentRepository: GitRepository = initialRepository
 
-    private val repositoryCombo = ComboBoxWithAutoCompletion(MutableCollectionComboBoxModel(repositoriesByName.keys.toList()), project).apply {
-        setPlaceholder("Type to search repositories")
-        // The constructor assigns the editor without telling the UI delegate; reinstall the UI so it picks it up.
-        updateUI()
+    /** Set while the fields are filled from a repository, so their change events are not taken as the user's choice. */
+    private var loading = false
+
+    private val repositoryCombo = SearchComboBox(project, "Type to search repositories").apply {
+        setNames(repositoriesByName.keys.toList())
         selectedItem = nameOf(initialRepository)
     }
-    private val targetModel = MutableCollectionComboBoxModel<String>()
-    private val targetCombo = ComboBoxWithAutoCompletion(targetModel, project).apply {
-        setPlaceholder("Type to search local branches")
-        updateUI()
-    }
+    private val targetCombo = SearchComboBox(project, "Type to search local branches")
     private val filterField = SearchTextField(false)
     private val branchList = CheckBoxList<String>()
     private val orderModel = DefaultListModel<String>()
@@ -117,20 +112,10 @@ internal class OctopusMergeDialog(
         title = "Octopus Merge"
         setOKButtonText("Merge")
 
-        repositoryCombo.addActionListener {
-            val repo = repositoriesByName[repositoryCombo.selectedItem as? String] ?: return@addActionListener
-            if (repo != currentRepository) {
-                currentRepository = repo
-                loadRepository()
-            }
-        }
-        targetCombo.addActionListener {
-            val target = (targetCombo.selectedItem as? String)?.takeIf { it in selection.localBranches } ?: return@addActionListener
-            if (target != selection.target) {
-                selection.target = target
-                selectionChanged()
-            }
-        }
+        repositoryCombo.addActionListener { repositoryChosen() }
+        repositoryCombo.addTextListener { repositoryChosen() }
+        targetCombo.addActionListener { targetChosen() }
+        targetCombo.addTextListener { targetChosen() }
         filterField.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = rebuildBranchList()
         })
@@ -228,15 +213,33 @@ internal class OctopusMergeDialog(
     override fun getDimensionServiceKey(): String = "OctopusMerge.Dialog"
 
     override fun doValidate(): ValidationInfo? {
-        val typedTarget = targetCombo.getText().orEmpty().trim()
-        if (typedTarget.isNotEmpty() && typedTarget !in selection.localBranches) {
+        val typedTarget = targetCombo.text.trim()
+        if (typedTarget.isNotEmpty() && targetCombo.resolvedName == null) {
             return ValidationInfo("No local branch '$typedTarget'", targetCombo)
         }
-        val typedRepository = repositoryCombo.getText().orEmpty().trim()
-        if (repositories.size > 1 && typedRepository.isNotEmpty() && typedRepository !in repositoriesByName) {
+        val typedRepository = repositoryCombo.text.trim()
+        if (repositories.size > 1 && typedRepository.isNotEmpty() && repositoryCombo.resolvedName == null) {
             return ValidationInfo("No repository '$typedRepository'", repositoryCombo)
         }
         return selection.validate()?.let { ValidationInfo(it, branchList) }
+    }
+
+    private fun repositoryChosen() {
+        if (loading) return
+        val repo = repositoriesByName[repositoryCombo.selectedItem as? String] ?: return
+        if (repo != currentRepository) {
+            currentRepository = repo
+            loadRepository()
+        }
+    }
+
+    private fun targetChosen() {
+        if (loading) return
+        val target = (targetCombo.selectedItem as? String)?.takeIf { it in selection.localBranches } ?: return
+        if (target != selection.target) {
+            selection.target = target
+            selectionChanged()
+        }
     }
 
     private fun nameOf(repository: GitRepository): String = repositoriesByName.entries.first { it.value == repository }.key
@@ -251,8 +254,13 @@ internal class OctopusMergeDialog(
         )
         selection.selectAll(previous)
 
-        targetModel.update(selection.localBranches)
-        targetCombo.selectedItem = selection.target
+        loading = true
+        try {
+            targetCombo.setNames(selection.localBranches)
+            targetCombo.selectedItem = selection.target
+        } finally {
+            loading = false
+        }
         previewSupported = null
         selectionChanged()
     }
@@ -291,7 +299,7 @@ internal class OctopusMergeDialog(
 
     private fun rebuildBranchList() {
         branchList.clear()
-        selection.visibleBranches(filterField.text).forEach { branchList.addItem(it, it, selection.isSelected(it)) }
+        selection.visibleBranches(filterField.text, SearchComboBox::fixLayout).forEach { branchList.addItem(it, it, selection.isSelected(it)) }
     }
 
     private fun schedulePreview() {

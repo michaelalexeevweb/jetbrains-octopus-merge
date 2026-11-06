@@ -119,6 +119,23 @@ class IdeIntegrationTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test completion matches any part of a name, any case, any layout`() {
+        val matcher = SearchComboBox.NamePrefixMatcher("FEAT login")
+        assertTrue(matcher.prefixMatches("feature/login"))
+        assertFalse(matcher.prefixMatches("feature/signup"))
+        assertTrue(SearchComboBox.NamePrefixMatcher("ьфшт").prefixMatches("main"))
+        assertTrue(matcher.cloneWithPrefix("ьфшт").prefixMatches("origin/main"))
+    }
+
+    fun `test combo resolves typed text and lists every name`() {
+        val combo = SearchComboBox(project, "placeholder")
+        combo.setNames(listOf("main", "develop"))
+        assertEquals(2, combo.itemCount)
+        combo.selectedItem = "develop"
+        assertEquals("develop", combo.selectedItem)
+        assertEquals("develop", combo.text)
+    }
+
     private companion object {
         const val ACTION_ID = "OctopusMerge.Merge"
     }

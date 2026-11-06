@@ -103,6 +103,12 @@ class BranchSelectionTest {
     }
 
     @Test
+    fun `filter fixes the keyboard layout`() {
+        val russian = mapOf('а' to 'f', 'у' to 'e', 'ф' to 'a', 'е' to 't')
+        assertEquals(listOf("feature/a", "feature/b", "origin/feature/c"), selection().visibleBranches("ауфе", russian::get))
+    }
+
+    @Test
     fun `validation needs a target and two branches`() {
         val s = selection()
         assertTrue(s.validate()!!.contains("two"))

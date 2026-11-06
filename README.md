@@ -5,6 +5,14 @@ JetBrains IDE plugin: merge several Git branches into one with a single merge co
 
 ![Octopus Merge dialog](docs/octopus-merge-dialog.jpg)
 
+Before: four branches off `main`.
+
+![Git log before the octopus merge](docs/octopus-merge-before.jpg)
+
+After: one merge commit on `main` whose parents are the target and all four branches.
+
+![Git log after the octopus merge](docs/octopus-merge-after.jpg)
+
 ## Install
 
 1. Download `JetbrainsOctopusMerge-<version>.zip` from the [latest release](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest).
@@ -14,12 +22,21 @@ Requires an IntelliJ-based IDE 2026.3 or newer (build 263+) with the bundled Git
 
 ## Where
 
+Look for the octopus button <img src="docs/octopus-merge-icon.png" width="16" height="16" alt="Octopus Merge icon">:
+
 - **Git → Octopus Merge…** (right after Merge…)
-- Git tool window: context menu of selected branches or commits. The selection is pre-checked.
+- Main toolbar at the top of the IDE window, next to the run and search buttons
+- Git tool window (`⌘9` on macOS, `Alt+9` on Windows/Linux): branches toolbar, and the context menu
+  of selected branches or commits. The selection is pre-checked.
+- Branch popup (current branch name on the main toolbar)
+- Find Action (`⇧⌘A` / `Ctrl+Shift+A`): type `Octopus`
 
 ## Dialog
 
-- **Merge into**: target branch. **Branches**: checkbox list with search (local and remote).
+- **Repository** (several repositories in the project) and **Merge into** (target branch): type to get suggestions.
+  **Branches**: checkbox list with search (local and remote).
+- Search everywhere in the dialog: every typed word anywhere in the name, case-insensitive,
+  and text typed in the wrong keyboard layout still matches (`ьфшт` finds `main`).
 - **Merge order**: checked branches in order, reorder with ↑/↓. Each branch shows a preview:
   commits it brings, conflicts expected at its position (computed with `git merge-tree`, nothing is touched),
   or "already merged".

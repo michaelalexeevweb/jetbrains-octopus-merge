@@ -4,6 +4,8 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.EDT
+import com.intellij.openapi.diagnostic.ErrorReportSubmitter
+import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.common.timeoutRunBlocking
 import com.intellij.testFramework.junit5.TestApplication
@@ -23,6 +25,7 @@ import octopusmerge.core.TestRepo
 import octopusmerge.core.output
 import octopusmerge.ide.dialog.SearchComboBox
 import org.junit.jupiter.api.Test
+import java.net.URLDecoder
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -66,6 +69,29 @@ class IdeIntegrationTest {
         assertNotNull(OctopusMergeAction::class.java.getResource("/icons/octopusMerge.svg"))
         assertNotNull(OctopusMergeAction::class.java.getResource("/icons/octopusMerge_dark.svg"))
         assertNotNull(ActionManager.getInstance().getAction(ACTION_ID).templatePresentation.icon)
+    }
+
+    @Test
+    fun `errors in the plugin can be reported to GitHub`() {
+        val reporters = ExtensionPointName.create<ErrorReportSubmitter>("com.intellij.errorHandler").extensionList
+        assertTrue(reporters.any { it is OctopusMergeErrorReporter }, "registered: $reporters")
+    }
+
+    @Test
+    fun `issue link carries the environment and fits a long stack trace`() {
+        val trace = (1..2000).joinToString("\n") { "    at octopusmerge.Frame$it.call(Frame.kt:$it)" }
+        val url = IssueReport.url("Error: boom & bust", "It broke", "java.lang.IllegalStateException: boom\n$trace")
+        assertTrue(url.length <= 7000, "url length ${url.length}")
+        assertTrue(
+            url.startsWith(
+                "https://github.com/michaelalexeevweb/jetbrains-octopus-merge/issues/new?title=Error%3A%20boom%20%26%20bust&body=",
+            ),
+        )
+        val body = URLDecoder.decode(url.substringAfter("&body="), Charsets.UTF_8)
+        assertTrue("It broke" in body)
+        assertTrue(Regex("- Octopus Merge \\d+\\.\\d+\\.\\d+").containsMatchIn(body), body)
+        assertTrue("java.lang.IllegalStateException: boom" in body)
+        assertTrue(body.trimEnd().endsWith("…\n```"), body.takeLast(80))
     }
 
     @Test

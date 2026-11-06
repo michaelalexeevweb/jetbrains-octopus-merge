@@ -1,5 +1,6 @@
 package octopusmerge.ide.dialog
 
+import com.intellij.openapi.diagnostic.logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -169,6 +170,7 @@ internal class MergeDialogController(
                     // A newer request cancelled this one: runInterruptible turns the interrupt into cancellation.
                     throw e
                 } catch (e: Exception) {
+                    LOG.info("Conflict preview failed", e)
                     PreviewState.Failed(e.message.orEmpty())
                 }
             }
@@ -189,3 +191,5 @@ internal class MergeDialogController(
         val resolutionsVersion: Int,
     )
 }
+
+private val LOG = logger<MergeDialogController>()

@@ -1,5 +1,7 @@
 package octopusmerge.ide
 
+import com.intellij.openapi.diagnostic.debug
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.VcsDirtyScopeManager
@@ -41,6 +43,7 @@ internal class IdeGitExecutor(
         handler.addParameters(args.drop(1))
         handler.setSilent(quiet || name in READ_ONLY)
         val result = Git.getInstance().runCommand(handler)
+        LOG.debug { "git ${args.joinToString(" ")} -> ${result.exitCode}" }
         return GitResult(result.exitCode, result.output, result.errorOutput)
     }
 
@@ -51,7 +54,9 @@ internal class IdeGitExecutor(
     override fun runRaw(args: List<String>, input: ByteArray?, env: Map<String, String>): GitResult {
         val executable = GitExecutableManager.getInstance().getExecutable(project)
         if (!executable.isLocal) throw MergeException(message("git.not.local", executable.exePath))
-        return ProcessGitExecutor(root, executable.exePath, executable.getLocaleEnv()).runRaw(args, input, env)
+        val result = ProcessGitExecutor(root, executable.exePath, executable.getLocaleEnv()).runRaw(args, input, env)
+        LOG.debug { "git ${args.joinToString(" ")} (raw) -> ${result.exitCode}" }
+        return result
     }
 
     companion object {
@@ -104,6 +109,7 @@ internal class IdeMergeProgress(
     private val indicator: ProgressIndicator,
 ) : MergeProgress {
     override fun step(text: String) {
+        LOG.info("Octopus merge step: $text")
         indicator.text = text
     }
 
@@ -115,3 +121,5 @@ internal class IdeMergeProgress(
         VcsDirtyScopeManager.getInstance(project).markEverythingDirty()
     }
 }
+
+private val LOG = logger<IdeGitExecutor>()

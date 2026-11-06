@@ -58,6 +58,12 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <h3>0.2.4</h3>
+    <ul>
+      <li>Report plugin errors from the IDE error dialog as a prefilled GitHub issue</li>
+      <li><i>Report a problem…</i> in failed merge and undo notifications</li>
+      <li>Merge steps and failures in the IDE log; git commands at debug level (<code>#octopusmerge</code>)</li>
+    </ul>
     <h3>0.2.3</h3>
     <ul>
       <li>Conflict preview drops outdated checks as soon as the selection changes</li>
@@ -98,6 +104,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Octopus Merge" displayType="BALLOON" key="notification.group.name"/>
+        <errorHandler implementation="octopusmerge.ide.OctopusMergeErrorReporter"/>
     </extensions>
 
     <actions>

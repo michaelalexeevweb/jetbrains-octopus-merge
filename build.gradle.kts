@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "octopusmerge"
-version = "0.2.3"
+version = "0.2.4"
 
 repositories {
     mavenCentral()
@@ -56,6 +56,13 @@ intellijPlatform {
             untilBuild = provider { null }
         }
     }
+}
+
+tasks.processResources {
+    // The plugin reports its version in issue links without asking the platform's internal plugin APIs.
+    val pluginVersion = project.version.toString()
+    inputs.property("pluginVersion", pluginVersion)
+    filesMatching("octopusmerge/version.properties") { expand("version" to pluginVersion) }
 }
 
 tasks.test {

@@ -70,6 +70,16 @@ Look for the octopus button <img src="docs/octopus-merge-icon.png" width="16" he
 The success notification has **Undo** (reset to the previous commit, recreate deleted branches);
 a prepared `--no-commit` merge has **Commit…** and **Abort**.
 
+## Reporting problems
+
+- An error of the plugin in the IDE error dialog (red icon in the status bar): **Report to Octopus Merge on GitHub**.
+- A failed merge or undo: **Report a problem…** in the notification.
+
+Both open a prefilled [GitHub issue](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/issues) in the browser
+with the error and the IDE, plugin and OS versions. The plugin sends nothing itself: review the text and submit it.
+For more detail attach the log: Help → Collect Logs and Diagnostic Data. Git commands are logged at debug level:
+Help → Diagnostic Tools → Debug Log Settings → `#octopusmerge`.
+
 ## Build
 
 Needs the IDE to build against: `localIdePath` in `gradle.properties`. `make` runs Gradle on that IDE's bundled JBR,

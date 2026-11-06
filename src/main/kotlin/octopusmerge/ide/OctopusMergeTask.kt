@@ -5,6 +5,7 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
@@ -22,18 +23,25 @@ internal class OctopusMergeTask(project: Project, private val repository: GitRep
     Task.Backgroundable(project, message("task.merge.title", request.target), true) {
 
     override fun run(indicator: ProgressIndicator) {
+        LOG.info("Octopus merge of ${request.branches.size} branches into ${request.target}: ${request.options}")
         val merger = merger(project, repository, indicator)
         try {
-            report(merger.merge(request))
+            val outcome = merger.merge(request)
+            LOG.info("Octopus merge into ${request.target}: ${outcome.status}, skipped ${outcome.skipped.size}, stash ${outcome.stash}")
+            report(outcome)
         } catch (e: MergeCancelledException) {
+            LOG.info("Octopus merge into ${request.target} cancelled: ${e.message}")
             notify(project, message("notification.cancelled.title"), html(e.message), WARNING)
         } catch (e: MergeException) {
-            notify(project, message("notification.failed.title"), html(e.message), NotificationType.ERROR)
+            LOG.warn("Octopus merge into ${request.target} failed", e)
+            val title = message("notification.failed.title")
+            notifyFailure(project, title, e, message("report.failed.title", e.message.orEmpty().lineSequence().first()))
         }
     }
 
     /** The user cancelled the progress; the merger has already rolled everything back. */
     override fun onCancel() {
+        LOG.info("Octopus merge into ${request.target} cancelled from the progress")
         notify(project, message("notification.cancelled.title"), message("notification.cancelled.restored", request.target), WARNING)
     }
 
@@ -92,7 +100,9 @@ internal class OctopusMergeTask(project: Project, private val repository: GitRep
                 val content = message("notification.undone.content", outcome.target, outcome.originalHead.take(SHORT_HASH))
                 notify(project, message("notification.undone.title"), content, NotificationType.INFORMATION)
             } catch (e: MergeException) {
-                notify(project, message("notification.undo.failed.title"), html(e.message), NotificationType.ERROR)
+                LOG.warn("Undo of octopus merge into ${outcome.target} failed", e)
+                val title = message("notification.undo.failed.title")
+                notifyFailure(project, title, e, message("report.undo.failed.title", e.message.orEmpty().lineSequence().first()))
             }
         }
     }
@@ -113,8 +123,21 @@ internal class OctopusMergeTask(project: Project, private val repository: GitRep
 
         private fun notificationGroup() = NotificationGroupManager.getInstance().getNotificationGroup(GROUP)
 
+        private val LOG = logger<OctopusMergeTask>()
+
         private fun notify(project: Project, title: String, content: String, type: NotificationType) {
             notificationGroup().createNotification(title, content, type).notify(project)
+        }
+
+        /** An error notification with a link that opens a prefilled GitHub issue. */
+        private fun notifyFailure(project: Project, title: String, error: MergeException, issueTitle: String) {
+            notificationGroup().createNotification(title, html(error.message), NotificationType.ERROR)
+                .addAction(
+                    NotificationAction.createSimple(message("notification.action.report")) {
+                        IssueReport.open(issueTitle, error.message.orEmpty(), error.stackTraceToString())
+                    },
+                )
+                .notify(project)
         }
     }
 }

@@ -93,6 +93,12 @@ interface MergeProgress {
     /** Throws to cancel; the merge is rolled back. */
     fun checkCanceled() {}
 
+    /** True once the user cancelled the merge. */
+    val isCanceled: Boolean get() = false
+
+    /** Runs [block] to the end even after a cancel: rollback must not stop halfway. */
+    fun <T> nonCancellable(block: () -> T): T = block()
+
     /** Called after git changed files on disk, so the IDE can refresh before showing them. */
     fun filesChanged() {}
 

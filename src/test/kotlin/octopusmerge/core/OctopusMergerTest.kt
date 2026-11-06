@@ -309,6 +309,51 @@ class OctopusMergerTest {
     }
 
     @Test
+    fun `rollback after a cancel from the progress is not interrupted`() {
+        conflictingBranches()
+        repo.write("other.txt", "local\n")
+        repo("add", "other.txt")
+        repo("commit", "-q", "-m", "other")
+        repo.write("other.txt", "local edit\n")
+        val start = repo.head()
+        var cancelled = false
+        var nonCancellable = false
+        val progress = object : MergeProgress {
+            override fun checkCanceled() {
+                if (cancelled) throw IllegalStateException("cancelled")
+            }
+
+            override val isCanceled: Boolean get() = cancelled
+
+            override fun <T> nonCancellable(block: () -> T): T {
+                nonCancellable = true
+                try {
+                    return block()
+                } finally {
+                    nonCancellable = false
+                }
+            }
+        }
+        // Like git in the IDE: once the progress is cancelled, commands fail outside a non-cancelable section.
+        val git = object : GitExecutor by repo.git {
+            override fun run(args: List<String>, config: List<String>): GitResult {
+                check(!cancelled || nonCancellable) { "git ${args.first()} after cancel" }
+                return repo.git.run(args, config)
+            }
+        }
+        val resolver = ConflictResolver { step -> resolvingTo("x\n").resolve(step).also { cancelled = true } }
+
+        assertFailsWith<IllegalStateException> {
+            OctopusMerger(git, resolver, progress)
+                .merge(MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(autoStash = true)))
+        }
+
+        assertEquals(start, repo.head())
+        assertEquals("local edit\n", repo.read("other.txt"))
+        assertEquals(0, repo.stashCount())
+    }
+
+    @Test
     fun `prefer target resolves conflicts without asking`() {
         conflictingBranches()
 

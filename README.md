@@ -1,5 +1,8 @@
 # Octopus Merge
 
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/blob/master/LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/michaelalexeevweb/jetbrains-octopus-merge)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest)
+
 JetBrains IDE plugin: merge several Git branches into one with a single merge commit
 (an octopus merge), with conflict preview and conflict resolution in the IDE merge dialog.
 
@@ -95,3 +98,7 @@ make run            # sandbox IDE with the plugin
 ```
 
 User-visible texts live in `src/main/resources/messages/OctopusMergeBundle.properties`.
+
+## License
+
+[MIT](LICENSE)

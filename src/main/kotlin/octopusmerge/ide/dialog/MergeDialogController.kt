@@ -63,12 +63,16 @@ internal class MergeDialogController(
     private val repositories: List<RepositoryChoice>,
     initialRepository: String,
     preselected: Collection<String>,
-    private var options: MergeOptions,
+    initialOptions: MergeOptions,
     private val scope: CoroutineScope,
     private val debounce: Duration = 300.milliseconds,
 ) {
     /** Conflicts resolved in advance from the preview; handed to the merge. */
     val resolutions = Resolutions()
+
+    /** Every merge option as last set in the dialog; the merge runs with these. */
+    var options: MergeOptions = initialOptions
+        private set
 
     private var repository: RepositoryChoice = choice(initialRepository)
     private var selection: BranchSelection = select(repository, preselected)
@@ -84,7 +88,6 @@ internal class MergeDialogController(
     private val previewRequests = MutableStateFlow(previewRequest())
 
     val repositoryName: String get() = repository.name
-    val currentOptions: MergeOptions get() = options
 
     /** Starts the preview. Call once the dialog is ready to render it. */
     fun start() {
@@ -124,7 +127,8 @@ internal class MergeDialogController(
 
     fun optionsChanged(newOptions: MergeOptions) {
         options = newOptions
-        changed()
+        // Only the options the preview depends on restart it; previewRequest() leaves the rest out.
+        previewRequests.value = previewRequest()
     }
 
     /** Call after [resolutions] changed, so the preview counts them. */
@@ -147,7 +151,11 @@ internal class MergeDialogController(
         problem = selection.validate(),
     )
 
-    private fun previewRequest() = PreviewRequest(repository, selection.target, selection.selected, options, resolutionsVersion)
+    private fun previewRequest() = PreviewRequest(repository, selection.target, selection.selected, previewOptions(), resolutionsVersion)
+
+    /** The options that change predicted conflicts. */
+    private fun previewOptions() =
+        MergeOptions(conflictStrategy = options.conflictStrategy, allowUnrelatedHistories = options.allowUnrelatedHistories)
 
     private suspend fun runPreview(request: PreviewRequest) {
         val target = request.target
@@ -167,7 +175,7 @@ internal class MergeDialogController(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: InterruptedException) {
-                    // A newer request cancelled this one: runInterruptible turns the interrupt into cancellation.
+                    // A newer request cancelled this one: runInterruptible interrupts git and turns this into cancellation.
                     throw e
                 } catch (e: Exception) {
                     LOG.info("Conflict preview failed", e)

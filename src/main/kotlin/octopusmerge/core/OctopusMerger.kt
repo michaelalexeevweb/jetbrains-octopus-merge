@@ -44,6 +44,7 @@ class OctopusMerger(
         }
 
         var switched = false
+        val rollbackNotes = mutableListOf<String>()
         try {
             if (startBranch != request.target) {
                 progress.step("Checking out ${request.target}")
@@ -68,7 +69,8 @@ class OctopusMerger(
             val merged = try {
                 performMerge(request, toMerge, originalHead, message)
             } catch (e: Throwable) {
-                runCatching { restoreHead(originalHead) }
+                progress.nonCancellable { runCatching { restoreHead(originalHead) } }
+                    .onFailure { rollbackNotes += "Could not reset ${request.target} to ${originalHead.take(SHORT_HASH)}: ${it.message}" }
                 throw e
             }
             progress.filesChanged()
@@ -91,19 +93,29 @@ class OctopusMerger(
                 toMerge.map { it.first }, skipped, merged.conflicted, merged.preResolved, stash, deleted, notDeleted,
             )
         } catch (e: Throwable) {
-            val notes = mutableListOf<String>()
-            if (switched) {
-                runCatching { git.output("checkout", "--quiet", startBranch ?: startHead) }
-                    .onFailure { notes += "Could not switch back to ${startBranch ?: startHead}: ${it.message}" }
+            progress.nonCancellable {
+                if (switched) {
+                    runCatching { git.output("checkout", "--quiet", startBranch ?: startHead) }
+                        .onFailure { rollbackNotes += "Could not switch back to ${startBranch ?: startHead}: ${it.message}" }
+                }
+                if (stashed && runCatching { popStash() }.getOrDefault(StashStatus.KEPT) == StashStatus.KEPT) {
+                    rollbackNotes += "Your local changes are kept in the stash (git stash list)."
+                }
+                runCatching { progress.filesChanged() }
             }
-            if (stashed && popStash() == StashStatus.KEPT) {
-                notes += "Your local changes are kept in the stash (git stash list)."
-            }
-            progress.filesChanged()
-            if (notes.isNotEmpty() && e is MergeException) {
-                throw MergeException((listOf(e.message.orEmpty()) + notes).joinToString("\n"))
-            }
-            throw e
+            throw rollbackError(e, rollbackNotes)
+        }
+    }
+
+    /** Adds what the rollback could not restore to the error, so the user is never told everything is back. */
+    private fun rollbackError(e: Throwable, notes: List<String>): Throwable {
+        if (notes.isEmpty()) return e
+        fun text(first: String?) = (listOf(first.orEmpty()) + notes).joinToString("\n")
+        return when {
+            e is MergeCancelledException -> MergeCancelledException(text(e.message))
+            e is MergeException -> MergeException(text(e.message))
+            progress.isCanceled -> MergeCancelledException(text("The merge was cancelled."))
+            else -> e.apply { addSuppressed(MergeException(notes.joinToString("\n"))) }
         }
     }
 
@@ -318,5 +330,9 @@ class OctopusMerger(
     private fun popStash(): StashStatus {
         progress.step("Restoring local changes")
         return if (git.run("stash", "pop").success) StashStatus.RESTORED else StashStatus.KEPT
+    }
+
+    private companion object {
+        const val SHORT_HASH = 8
     }
 }

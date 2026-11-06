@@ -1,6 +1,7 @@
 package octopusmerge.ide.dialog
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import octopusmerge.core.BranchAnalysis
@@ -66,11 +67,14 @@ internal object PreviewText {
 /** A row of the merge order: position, branch and what the preview predicts for it. */
 internal class MergeOrderRenderer(private val analysis: () -> Map<String, BranchAnalysis>) : ColoredListCellRenderer<String>() {
     override fun customizeCellRenderer(list: JList<out String>, value: String, index: Int, selected: Boolean, hasFocus: Boolean) {
+        // The renderer is reused for every row: clear the tooltip of the previous one.
+        toolTipText = null
         append("${index + 1}. ", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append(value)
         val info = analysis()[value] ?: return
         icon = PreviewText.icon(info.state)
         append("  ${PreviewText.details(info)}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
-        toolTipText = info.conflictFiles.takeIf { it.isNotEmpty() }?.joinToString("<br>", "<html>", "</html>")
+        toolTipText = info.conflictFiles.takeIf { it.isNotEmpty() }
+            ?.joinToString("<br>", "<html>", "</html>", transform = StringUtil::escapeXmlEntities)
     }
 }

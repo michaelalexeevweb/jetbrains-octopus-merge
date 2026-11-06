@@ -5,6 +5,7 @@ import com.intellij.diff.DiffRequestFactory
 import com.intellij.diff.merge.MergeResult
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileTypes.FileTypeManager
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -16,6 +17,7 @@ import octopusmerge.core.BranchAnalysis
 import octopusmerge.core.BranchState
 import octopusmerge.core.FileConflict
 import octopusmerge.core.MergeAnalyzer
+import octopusmerge.core.MergeException
 import octopusmerge.core.Resolutions
 import octopusmerge.ide.OctopusMergeBundle.message
 import javax.swing.JComponent
@@ -55,14 +57,22 @@ internal class AdvanceResolver(private val project: Project, private val reposit
         }
 
         val analyzer = MergeAnalyzer(IdeGitExecutor(project, repository.root, quiet = true))
-        val versions = ProgressManager.getInstance().runProcessWithProgressSynchronously(
-            ThrowableComputable<List<Versions>, Exception> {
-                todo.map { Versions(it, it.base?.let(analyzer::blob), analyzer.blob(it.ours!!), analyzer.blob(it.theirs!!)) }
-            },
-            message("advance.loading"),
-            true,
-            project,
-        )
+        val versions = try {
+            ProgressManager.getInstance().runProcessWithProgressSynchronously(
+                ThrowableComputable<List<Versions>, Exception> {
+                    todo.map { Versions(it, it.base?.let(analyzer::blob), analyzer.blob(it.ours!!), analyzer.blob(it.theirs!!)) }
+                },
+                message("advance.loading"),
+                true,
+                project,
+            )
+        } catch (_: ProcessCanceledException) {
+            // The user cancelled loading: nothing to resolve.
+            return changed
+        } catch (e: MergeException) {
+            Messages.showErrorDialog(parent, message("advance.loading.failed", e.message.orEmpty()), message("advance.title"))
+            return changed
+        }
 
         val skippedBinary = mutableListOf<String>()
         for (file in versions) {

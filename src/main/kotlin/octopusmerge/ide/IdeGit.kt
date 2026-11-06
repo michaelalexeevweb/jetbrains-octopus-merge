@@ -3,6 +3,7 @@ package octopusmerge.ide
 import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.VcsDirtyScopeManager
 import com.intellij.openapi.vcs.history.VcsRevisionNumber
@@ -114,6 +115,12 @@ internal class IdeMergeProgress(
     }
 
     override fun checkCanceled() = indicator.checkCanceled()
+
+    override val isCanceled: Boolean get() = indicator.isCanceled
+
+    /** Git commands of the IDE stop on a cancelled indicator; a non-cancelable section lets the rollback finish. */
+    override fun <T> nonCancellable(block: () -> T): T =
+        ProgressManager.getInstance().computeInNonCancelableSection<T, Exception> { block() }
 
     override fun filesChanged() {
         VfsUtil.markDirtyAndRefresh(false, true, false, repository.root)

@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -6,8 +7,8 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
 }
 
-group = "octopusmerge"
-version = "0.2.5"
+group = "io.github.michaelalexeevweb"
+version = "0.2.6"
 
 repositories {
     mavenCentral()
@@ -48,6 +49,8 @@ intellijPlatform {
     pluginVerification {
         ides {
             local(file(providers.gradleProperty("localIdePath").get()))
+            // The plugin needs only Git4Idea, so it installs into any IDE: check IntelliJ IDEA as well.
+            create(IntelliJPlatformType.IntellijIdea, "2026.3")
         }
     }
     pluginConfiguration {

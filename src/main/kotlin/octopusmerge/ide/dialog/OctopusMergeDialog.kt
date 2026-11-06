@@ -76,7 +76,7 @@ internal class OctopusMergeDialog(
         repositories = repositoriesByName.map { (name, repository) -> choiceOf(name, repository) },
         initialRepository = repositoriesByName.entries.first { it.value == initialRepository }.key,
         preselected = preselected,
-        options = initialOptions,
+        initialOptions = initialOptions,
         scope = scope,
     )
 
@@ -137,18 +137,20 @@ internal class OctopusMergeDialog(
     val message: String? get() = messageArea.text.trim().takeIf { messageEdited && it.isNotEmpty() }
     val resolutions: Resolutions get() = controller.resolutions
 
-    val options: MergeOptions
-        get() = MergeOptions(
-            noVerify = noVerify.isSelected,
-            noCommit = noCommit.isSelected,
-            conflictStrategy = strategyCombo.item,
-            allowUnrelatedHistories = allowUnrelated.isSelected,
-            signoff = signoff.isSelected,
-            gpgSign = gpgSign.isSelected,
-            appendLog = appendLog.isSelected,
-            autoStash = autoStash.isSelected,
-            deleteMergedBranches = deleteMerged.isSelected,
-        )
+    val options: MergeOptions get() = controller.options
+
+    /** The options as the widgets show them; every change goes to the controller. */
+    private fun widgetOptions() = MergeOptions(
+        noVerify = noVerify.isSelected,
+        noCommit = noCommit.isSelected,
+        conflictStrategy = strategyCombo.item,
+        allowUnrelatedHistories = allowUnrelated.isSelected,
+        signoff = signoff.isSelected,
+        gpgSign = gpgSign.isSelected,
+        appendLog = appendLog.isSelected,
+        autoStash = autoStash.isSelected,
+        deleteMergedBranches = deleteMerged.isSelected,
+    )
 
     override fun createCenterPanel(): JComponent {
         val left = JPanel(BorderLayout(0, JBUI.scale(4))).apply {
@@ -181,12 +183,14 @@ internal class OctopusMergeDialog(
             row(message("dialog.label.message")) { scrollCell(messageArea).align(AlignX.FILL) }
             collapsibleGroup(message("dialog.group.options")) {
                 row(message("dialog.label.on.conflict")) { cell(strategyCombo) }
-                for (option in listOf(autoStash, noCommit, appendLog, signoff, gpgSign, noVerify, allowUnrelated, deleteMerged)) {
+                for (option in optionBoxes()) {
                     row { cell(option) }
                 }
             }
         }
     }
+
+    private fun optionBoxes() = listOf(autoStash, noCommit, appendLog, signoff, gpgSign, noVerify, allowUnrelated, deleteMerged)
 
     override fun getPreferredFocusedComponent(): JComponent = filterField.textEditor
 
@@ -231,8 +235,8 @@ internal class OctopusMergeDialog(
                 if (!rendering) messageEdited = messageArea.text.isNotBlank()
             }
         })
-        strategyCombo.addActionListener { controller.optionsChanged(options) }
-        allowUnrelated.addActionListener { controller.optionsChanged(options) }
+        strategyCombo.addActionListener { controller.optionsChanged(widgetOptions()) }
+        for (option in optionBoxes()) option.addActionListener { controller.optionsChanged(widgetOptions()) }
     }
 
     private fun startRendering(modality: ModalityState) {

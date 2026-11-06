@@ -52,7 +52,5 @@ class Resolutions {
         contents.remove(conflict.key)
     }
 
-    val size: Int get() = contents.size
-
     fun isEmpty(): Boolean = contents.isEmpty()
 }

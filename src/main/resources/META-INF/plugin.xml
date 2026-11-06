@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>octopusmerge</id>
+    <id>io.github.michaelalexeevweb.octopusmerge</id>
     <name>Octopus Merge</name>
     <vendor url="https://github.com/michaelalexeevweb/jetbrains-octopus-merge">Michael Alexeev</vendor>
     <description><![CDATA[
@@ -63,6 +63,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <h3>0.2.6</h3>
+    <ul>
+      <li>Cancelling a merge from the progress always finishes the rollback; anything it could not restore is reported</li>
+      <li>An outdated conflict preview stops git at once instead of waiting for it</li>
+      <li>An error while loading conflicting versions for <i>resolve in advance</i> is shown in a message</li>
+      <li>Every merge option in the dialog reaches the merge; toggling options that do not affect conflicts no longer reruns the preview</li>
+      <li>Branch names with special characters are shown correctly in notifications and tooltips</li>
+      <li>Plugin ID for JetBrains Marketplace: <code>io.github.michaelalexeevweb.octopusmerge</code></li>
+    </ul>
     <h3>0.2.5</h3>
     <ul>
       <li><i>Report a problem or suggest a feature</i> link in the plugin description</li>
@@ -76,7 +85,7 @@
     <h3>0.2.3</h3>
     <ul>
       <li>Conflict preview drops outdated checks as soon as the selection changes</li>
-      <li>All texts in a message bundle, ready for translation</li>
+      <li>Dialog, notification and action texts in a message bundle, ready for translation</li>
       <li>Internal cleanup: dialog split into view and controller, coroutines instead of timers</li>
     </ul>
     <h3>0.2.2</h3>

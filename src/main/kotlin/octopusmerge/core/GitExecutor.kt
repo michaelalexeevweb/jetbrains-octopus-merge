@@ -110,17 +110,42 @@ class ProcessGitExecutor(
                 environment()["GIT_EDITOR"] = "true"
             }
             .start()
+        // Streams are pumped on helper threads, so the caller only waits for the process and can be interrupted.
         val writer = Thread {
-            process.outputStream.use { stream -> input?.let(stream::write) }
+            // Git may exit without reading stdin (or be killed): a broken pipe is not an error here.
+            runCatching { process.outputStream.use { stream -> input?.let(stream::write) } }
         }.apply { start() }
+        var stdout = ByteArray(0)
         var stderr = ByteArray(0)
+        val stdoutReader = Thread { stdout = process.inputStream.readBytes() }.apply { start() }
         val stderrReader = Thread { stderr = process.errorStream.readBytes() }.apply { start() }
-        val stdout = process.inputStream.readBytes()
-        process.waitFor(5, TimeUnit.MINUTES)
-        writer.join()
-        stderrReader.join()
+        val helpers = listOf(writer, stdoutReader, stderrReader)
+        val finished = try {
+            process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES)
+        } catch (e: InterruptedException) {
+            // A newer preview cancelled this one: stop git instead of waiting for it.
+            stop(process, helpers)
+            throw e
+        }
+        if (!finished) {
+            stop(process, helpers)
+            throw MergeException("git ${args.joinToString(" ")} did not finish in $TIMEOUT_MINUTES minutes.")
+        }
+        // Git has exited: its streams are closed, the helpers drain what is left and end.
+        helpers.forEach(Thread::join)
         return GitResult(process.exitValue(), lines(stdout), lines(stderr), stdout)
     }
 
+    /** Kills git; a hook it started may keep the pipes open, so the helpers get a bounded wait. */
+    private fun stop(process: Process, helpers: List<Thread>) {
+        process.destroyForcibly()
+        helpers.forEach { it.join(STOP_WAIT_MILLIS) }
+    }
+
     private fun lines(bytes: ByteArray): List<String> = String(bytes, Charsets.UTF_8).lines().dropLastWhile { it.isEmpty() }
+
+    private companion object {
+        const val TIMEOUT_MINUTES = 5L
+        const val STOP_WAIT_MILLIS = 1000L
+    }
 }

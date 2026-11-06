@@ -58,6 +58,12 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <h3>0.2.3</h3>
+    <ul>
+      <li>Conflict preview drops outdated checks as soon as the selection changes</li>
+      <li>All texts in a message bundle, ready for translation</li>
+      <li>Internal cleanup: dialog split into view and controller, coroutines instead of timers</li>
+    </ul>
     <h3>0.2.2</h3>
     <ul>
       <li>Git log before and after an octopus merge in the plugin description</li>
@@ -84,19 +90,19 @@
     </ul>
     ]]></change-notes>
 
+    <resource-bundle>messages.OctopusMergeBundle</resource-bundle>
+
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.platform.vcs</depends>
     <depends>Git4Idea</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="Octopus Merge" displayType="BALLOON"/>
+        <notificationGroup id="Octopus Merge" displayType="BALLOON" key="notification.group.name"/>
     </extensions>
 
     <actions>
         <action id="OctopusMerge.Merge"
                 class="octopusmerge.ide.OctopusMergeAction"
-                text="Octopus Merge…"
-                description="Merge several branches into one with a single merge commit"
                 icon="/icons/octopusMerge.svg">
             <add-to-group group-id="Git.MainMenu" anchor="after" relative-to-action="Git.Merge"/>
             <add-to-group group-id="Git.Branch" anchor="last"/>

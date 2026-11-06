@@ -3,8 +3,8 @@ package octopusmerge.ide
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.VcsDirtyScopeManager
-import com.intellij.openapi.vcs.merge.MergeDialogCustomizer
 import com.intellij.openapi.vcs.history.VcsRevisionNumber
+import com.intellij.openapi.vcs.merge.MergeDialogCustomizer
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import git4idea.commands.Git
@@ -20,6 +20,7 @@ import octopusmerge.core.GitResult
 import octopusmerge.core.MergeException
 import octopusmerge.core.MergeProgress
 import octopusmerge.core.ProcessGitExecutor
+import octopusmerge.ide.OctopusMergeBundle.message
 import java.io.File
 
 /** Runs git through the IDE Git plugin: configured executable, auth helpers, Git console. */
@@ -49,7 +50,7 @@ internal class IdeGitExecutor(
      */
     override fun runRaw(args: List<String>, input: ByteArray?, env: Map<String, String>): GitResult {
         val executable = GitExecutableManager.getInstance().getExecutable(project)
-        if (!executable.isLocal) throw MergeException("This operation needs a local git executable; ${executable.exePath} is not one.")
+        if (!executable.isLocal) throw MergeException(message("git.not.local", executable.exePath))
         return ProcessGitExecutor(root, executable.exePath, executable.getLocaleEnv()).runRaw(args, input, env)
     }
 
@@ -68,18 +69,12 @@ internal class IdeGitExecutor(
 }
 
 /** Resolves conflicts in the standard IDE "Conflicts" dialog. */
-internal class IdeConflictResolver(
-    private val project: Project,
-    private val root: VirtualFile,
-) : ConflictResolver {
+internal class IdeConflictResolver(private val project: Project, private val root: VirtualFile) : ConflictResolver {
 
     override fun resolve(step: ConflictStep): Boolean {
         val params = GitConflictResolver.Params(project)
-            .setMergeDescription(
-                "Octopus merge into <b>${step.target}</b>: merging <b>${step.branch}</b> (${step.index} of ${step.total}).<br>" +
-                    "Resolve the conflicts to continue; cancelling rolls the whole merge back."
-            )
-            .setErrorNotificationTitle("Octopus merge: conflicts in ${step.branch}")
+            .setMergeDescription(message("conflicts.description", step.target, step.branch, step.index, step.total))
+            .setErrorNotificationTitle(message("conflicts.error.title", step.branch))
             .setMergeDialogCustomizer(Customizer(step))
         val resolver = object : GitConflictResolver(project, listOf(root), params) {
             // The merger rolls back on unresolved conflicts, so the stock "resolve later" hint would mislead.
@@ -89,10 +84,16 @@ internal class IdeConflictResolver(
     }
 
     private class Customizer(private val step: ConflictStep) : MergeDialogCustomizer() {
-        override fun getMultipleFileDialogTitle(): String = "Octopus Merge: Conflicts in ${step.branch}"
-        override fun getLeftPanelTitle(file: VirtualFile): String =
-            if (step.index == 1) "${step.target} (target)" else "${step.target} with ${step.index - 1} branch(es) merged"
-        override fun getRightPanelTitle(file: VirtualFile, revisionNumber: VcsRevisionNumber?): String = "${step.branch} (merging)"
+        override fun getMultipleFileDialogTitle(): String = message("conflicts.dialog.title", step.branch)
+
+        override fun getLeftPanelTitle(file: VirtualFile): String = if (step.index == 1) {
+            message("conflicts.left.target", step.target)
+        } else {
+            message("conflicts.left.merged", step.target, step.index - 1)
+        }
+
+        override fun getRightPanelTitle(file: VirtualFile, revisionNumber: VcsRevisionNumber?): String =
+            message("conflicts.right", step.branch)
     }
 }
 

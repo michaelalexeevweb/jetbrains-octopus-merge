@@ -23,8 +23,10 @@ class MergeAnalyzerTest {
     fun `clean branches with commit counts`() {
         repo.branch("b1")
         repo("checkout", "-q", "-b", "b2")
-        repo.write("a.txt", "a\n"); repo.commit("a")
-        repo.write("b.txt", "b\n"); repo.commit("b")
+        repo.write("a.txt", "a\n")
+        repo.commit("a")
+        repo.write("b.txt", "b\n")
+        repo.commit("b")
         repo.checkout("main")
 
         assertEquals(
@@ -118,7 +120,10 @@ class MergeAnalyzerTest {
         assertEquals(BranchState.ERROR, refused.state)
         assertTrue(refused.error!!.contains("unrelated", ignoreCase = true))
 
-        assertEquals(BranchState.CLEAN, analyzer.analyze("main", listOf("island"), MergeOptions(allowUnrelatedHistories = true)).single().state)
+        assertEquals(
+            BranchState.CLEAN,
+            analyzer.analyze("main", listOf("island"), MergeOptions(allowUnrelatedHistories = true)).single().state,
+        )
     }
 
     @Test

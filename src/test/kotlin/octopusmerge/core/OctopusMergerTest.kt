@@ -312,7 +312,9 @@ class OctopusMergerTest {
     fun `prefer target resolves conflicts without asking`() {
         conflictingBranches()
 
-        merger().merge(MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(conflictStrategy = ConflictStrategy.PREFER_TARGET)))
+        merger().merge(
+            MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(conflictStrategy = ConflictStrategy.PREFER_TARGET)),
+        )
 
         assertEquals(4, repo.parents().size)
         assertEquals("line 1\nfrom b2\nline 3\n", repo.read("file.txt"), "b2 merged first, then kept against b3")
@@ -322,7 +324,9 @@ class OctopusMergerTest {
     fun `prefer branches takes the incoming side`() {
         conflictingBranches()
 
-        merger().merge(MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(conflictStrategy = ConflictStrategy.PREFER_BRANCHES)))
+        merger().merge(
+            MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(conflictStrategy = ConflictStrategy.PREFER_BRANCHES)),
+        )
 
         assertEquals(4, repo.parents().size)
         assertEquals("line 1\nfrom b3\nline 3\n", repo.read("file.txt"))
@@ -453,7 +457,7 @@ class OctopusMergerTest {
                 echo "[GNUPG:] BEGIN_SIGNING" >&2
                 echo "[GNUPG:] SIG_CREATED D 1 8 00 1 X" >&2
                 printf -- '-----BEGIN PGP SIGNATURE-----\n\nfake\n-----END PGP SIGNATURE-----\n'
-                """.trimIndent() + "\n"
+                """.trimIndent() + "\n",
             )
             setExecutable(true)
         }
@@ -565,7 +569,11 @@ class OctopusMergerTest {
         val start = repo.head()
 
         assertFailsWith<MergeCancelledException> {
-            merger(ConflictResolver { false }).merge(MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(autoStash = true)))
+            merger(
+                ConflictResolver {
+                    false
+                },
+            ).merge(MergeRequest("main", listOf("b1", "b2", "b3"), options = MergeOptions(autoStash = true)))
         }
 
         assertEquals(start, repo.head())
@@ -607,7 +615,7 @@ class OctopusMergerTest {
         repo("branch", "-D", "b3")
 
         val outcome = merger().merge(
-            MergeRequest("main", listOf("b1", "b2", "origin/b3"), options = MergeOptions(deleteMergedBranches = true))
+            MergeRequest("main", listOf("b1", "b2", "origin/b3"), options = MergeOptions(deleteMergedBranches = true)),
         )
 
         assertEquals(mapOf("b1" to b1, "b2" to b2), outcome.deletedBranches)

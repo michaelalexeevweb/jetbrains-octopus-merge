@@ -5,7 +5,6 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
@@ -17,79 +16,92 @@ import octopusmerge.core.MergeRequest
 import octopusmerge.core.MergeStatus
 import octopusmerge.core.OctopusMerger
 import octopusmerge.core.StashStatus
+import octopusmerge.ide.OctopusMergeBundle.message
 
-internal class OctopusMergeTask(
-    project: Project,
-    private val repository: GitRepository,
-    private val request: MergeRequest,
-) : Task.Backgroundable(project, "Octopus merge into ${request.target}", true) {
+internal class OctopusMergeTask(project: Project, private val repository: GitRepository, private val request: MergeRequest) :
+    Task.Backgroundable(project, message("task.merge.title", request.target), true) {
 
     override fun run(indicator: ProgressIndicator) {
         val merger = merger(project, repository, indicator)
         try {
             report(merger.merge(request))
-        } catch (e: ProcessCanceledException) {
-            notify("Octopus merge cancelled", "${request.target} is back where it was.", NotificationType.WARNING)
         } catch (e: MergeCancelledException) {
-            notify("Octopus merge cancelled", html(e.message), NotificationType.WARNING)
+            notify(project, message("notification.cancelled.title"), html(e.message), WARNING)
         } catch (e: MergeException) {
-            notify("Octopus merge failed", html(e.message), NotificationType.ERROR)
+            notify(project, message("notification.failed.title"), html(e.message), NotificationType.ERROR)
         }
+    }
+
+    /** The user cancelled the progress; the merger has already rolled everything back. */
+    override fun onCancel() {
+        notify(project, message("notification.cancelled.title"), message("notification.cancelled.restored", request.target), WARNING)
     }
 
     private fun report(outcome: MergeOutcome) {
-        val lines = mutableListOf<String>()
-        when (outcome.status) {
-            MergeStatus.NOTHING_TO_MERGE -> {
-                notify("Nothing to merge", "${request.target} already contains ${outcome.skipped.joinToString()}.", NotificationType.INFORMATION)
-                return
-            }
-            MergeStatus.COMMITTED -> lines += "${outcome.merged.size} branches merged into <b>${outcome.target}</b> as ${outcome.commit!!.take(8)}"
-            MergeStatus.PREPARED -> lines += "Merge of ${outcome.merged.joinToString()} is staged. Commit to finish it."
+        if (outcome.status == MergeStatus.NOTHING_TO_MERGE) {
+            val content = message("notification.nothing.content", request.target, outcome.skipped.joinToString())
+            notify(project, message("notification.nothing.title"), content, NotificationType.INFORMATION)
+            return
         }
-        if (outcome.conflictedBranches.isNotEmpty()) lines += "Conflicts resolved in ${outcome.conflictedBranches.joinToString()}"
-        if (outcome.preResolvedBranches.isNotEmpty()) lines += "Resolved in advance: ${outcome.preResolvedBranches.joinToString()}"
-        if (outcome.skipped.isNotEmpty()) lines += "Already merged, skipped: ${outcome.skipped.joinToString()}"
-        if (outcome.deletedBranches.isNotEmpty()) lines += "Deleted: ${outcome.deletedBranches.keys.joinToString()}"
-        if (outcome.notDeletedBranches.isNotEmpty()) lines += "Not deleted: ${outcome.notDeletedBranches.joinToString()}"
-        val type = if (outcome.stash == StashStatus.KEPT) {
-            lines += if (outcome.status == MergeStatus.PREPARED) "Your local changes are in the stash: unstash them after committing."
-            else "Your local changes could not be restored cleanly and are kept in the stash."
-            NotificationType.WARNING
-        } else NotificationType.INFORMATION
+        val prepared = outcome.status == MergeStatus.PREPARED
+        val lines = mutableListOf(
+            if (prepared) {
+                message("notification.staged", outcome.merged.joinToString())
+            } else {
+                message("notification.committed", outcome.merged.size, outcome.target, outcome.commit!!.take(SHORT_HASH))
+            },
+        )
+        listOf(
+            "notification.conflicts.resolved" to outcome.conflictedBranches,
+            "notification.resolved.in.advance" to outcome.preResolvedBranches,
+            "notification.skipped" to outcome.skipped,
+            "notification.deleted" to outcome.deletedBranches.keys,
+            "notification.not.deleted" to outcome.notDeletedBranches,
+        ).forEach { (key, branches) -> if (branches.isNotEmpty()) lines += message(key, branches.joinToString()) }
+        val stashKept = outcome.stash == StashStatus.KEPT
+        if (stashKept) {
+            lines += message(if (prepared) "notification.stash.unstash.after.commit" else "notification.stash.kept")
+        }
 
-        val title = if (outcome.status == MergeStatus.COMMITTED) "Octopus merge done" else "Octopus merge prepared"
-        val notification = NotificationGroupManager.getInstance().getNotificationGroup(GROUP)
-            .createNotification(title, lines.joinToString("<br>"), type)
-        if (outcome.status == MergeStatus.PREPARED) {
-            notification.addAction(NotificationAction.createSimpleExpiring("Commit…") {
-                ActionManager.getInstance().getAction("CheckinProject")?.let {
-                    ActionManager.getInstance().tryToExecute(it, null, null, ActionPlaces.NOTIFICATION, true)
-                }
-            })
+        val notification = notificationGroup().createNotification(
+            message(if (prepared) "notification.prepared.title" else "notification.done.title"),
+            lines.joinToString("<br>"),
+            if (stashKept) WARNING else NotificationType.INFORMATION,
+        )
+        if (prepared) {
+            notification.addAction(
+                NotificationAction.createSimpleExpiring(message("notification.action.commit")) {
+                    val manager = ActionManager.getInstance()
+                    manager.getAction(COMMIT_ACTION)?.let { manager.tryToExecute(it, null, null, ActionPlaces.NOTIFICATION, true) }
+                },
+            )
         }
-        notification.addAction(NotificationAction.createSimpleExpiring(if (outcome.status == MergeStatus.PREPARED) "Abort" else "Undo") {
-            UndoTask(project, repository, outcome).queue()
-        })
+        notification.addAction(
+            NotificationAction.createSimpleExpiring(message(if (prepared) "notification.action.abort" else "notification.action.undo")) {
+                UndoTask(project, repository, outcome).queue()
+            },
+        )
         notification.notify(project)
     }
 
-    private fun notify(title: String, content: String, type: NotificationType) = notify(project, title, content, type)
-
     private class UndoTask(project: Project, private val repository: GitRepository, private val outcome: MergeOutcome) :
-        Task.Backgroundable(project, "Undoing octopus merge", false) {
+        Task.Backgroundable(project, message("task.undo.title"), false) {
         override fun run(indicator: ProgressIndicator) {
             try {
                 merger(project, repository, indicator).undo(outcome)
-                notify(project, "Octopus merge undone", "${outcome.target} is back at ${outcome.originalHead.take(8)}.", NotificationType.INFORMATION)
+                val content = message("notification.undone.content", outcome.target, outcome.originalHead.take(SHORT_HASH))
+                notify(project, message("notification.undone.title"), content, NotificationType.INFORMATION)
             } catch (e: MergeException) {
-                notify(project, "Cannot undo octopus merge", html(e.message), NotificationType.ERROR)
+                notify(project, message("notification.undo.failed.title"), html(e.message), NotificationType.ERROR)
             }
         }
     }
 
     companion object {
         const val GROUP = "Octopus Merge"
+        private const val SHORT_HASH = 8
+        private const val COMMIT_ACTION = "CheckinProject"
+        private val WARNING = NotificationType.WARNING
 
         private fun merger(project: Project, repository: GitRepository, indicator: ProgressIndicator) = OctopusMerger(
             IdeGitExecutor(project, repository.root),
@@ -99,8 +111,10 @@ internal class OctopusMergeTask(
 
         private fun html(text: String?) = text.orEmpty().replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br>")
 
+        private fun notificationGroup() = NotificationGroupManager.getInstance().getNotificationGroup(GROUP)
+
         private fun notify(project: Project, title: String, content: String, type: NotificationType) {
-            NotificationGroupManager.getInstance().getNotificationGroup(GROUP).createNotification(title, content, type).notify(project)
+            notificationGroup().createNotification(title, content, type).notify(project)
         }
     }
 }

@@ -80,13 +80,7 @@ data class MergeOutcome(
 )
 
 /** Files of one conflicting step, handed to the user for resolution. */
-data class ConflictStep(
-    val branch: String,
-    val target: String,
-    val index: Int,
-    val total: Int,
-    val files: List<String>,
-)
+data class ConflictStep(val branch: String, val target: String, val index: Int, val total: Int, val files: List<String>)
 
 fun interface ConflictResolver {
     /** Returns true when every conflict is resolved and staged; false cancels the whole merge. */

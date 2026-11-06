@@ -119,11 +119,13 @@ class OctopusMerger(
                     if (!repo.isLocalBranch(name)) git.output("branch", name, hash)
                 }
             }
+
             MergeStatus.PREPARED -> {
                 if (!repo.gitPath("MERGE_HEAD").exists()) throw MergeException("The prepared merge is no longer in progress.")
                 git.output("reset", "--merge")
                 if (outcome.stash == StashStatus.KEPT) popStash()
             }
+
             MergeStatus.NOTHING_TO_MERGE -> Unit
         }
         progress.filesChanged()
@@ -138,31 +140,37 @@ class OctopusMerger(
 
     private class Steps(val conflicted: List<String>, val preResolved: List<String>)
 
-    private fun performMerge(
-        request: MergeRequest,
-        toMerge: List<Pair<String, String>>,
-        originalHead: String,
-        message: String,
-    ): Merged {
+    private fun performMerge(request: MergeRequest, toMerge: List<Pair<String, String>>, originalHead: String, message: String): Merged {
         val options = request.options
         val names = toMerge.map { it.first }
         progress.checkCanceled()
         progress.step("Merging ${names.joinToString(", ")}")
 
-        val native = git.run(buildList {
-            addAll(listOf("merge", "--no-ff", "--no-log"))
-            if (options.noVerify) add("--no-verify")
-            if (options.noCommit) add("--no-commit")
-            if (options.allowUnrelatedHistories) add("--allow-unrelated-histories")
-            if (options.gpgSign) add("-S")
-            // The octopus strategy ignores -X; it only matters for a single branch.
-            if (toMerge.size == 1) options.conflictStrategy.gitOption?.let { add("-X"); add(it) }
-            add("-m"); add(message)
-            addAll(names)
-        })
+        val native = git.run(
+            buildList {
+                addAll(listOf("merge", "--no-ff", "--no-log"))
+                if (options.noVerify) add("--no-verify")
+                if (options.noCommit) add("--no-commit")
+                if (options.allowUnrelatedHistories) add("--allow-unrelated-histories")
+                if (options.gpgSign) add("-S")
+                // The octopus strategy ignores -X; it only matters for a single branch.
+                if (toMerge.size == 1) {
+                    options.conflictStrategy.gitOption?.let {
+                        add("-X")
+                        add(it)
+                    }
+                }
+                add("-m")
+                add(message)
+                addAll(names)
+            },
+        )
         if (native.success) {
-            return if (options.noCommit) Merged(MergeStatus.PREPARED, null)
-            else Merged(MergeStatus.COMMITTED, repo.head())
+            return if (options.noCommit) {
+                Merged(MergeStatus.PREPARED, null)
+            } else {
+                Merged(MergeStatus.COMMITTED, repo.head())
+            }
         }
 
         restoreHead(originalHead)
@@ -186,12 +194,16 @@ class OctopusMerger(
         val finalMessage = if (hooks) commitMsgHook(message) else message
 
         val parents = (listOf(originalHead) + hashes).flatMap { listOf("-p", it) }
-        val commit = git.output(buildList {
-            add("commit-tree"); add(tree)
-            addAll(parents)
-            if (options.gpgSign) add("-S")
-            add("-m"); add(finalMessage)
-        })
+        val commit = git.output(
+            buildList {
+                add("commit-tree")
+                add(tree)
+                addAll(parents)
+                if (options.gpgSign) add("-S")
+                add("-m")
+                add(finalMessage)
+            },
+        )
         git.output("update-ref", "-m", "merge ${names.joinToString(" ")}: Merge made by octopus-merge", "HEAD", commit, stepHead)
         if (hooks) git.run("hook", "run", "--ignore-missing", "post-merge", "--", "0")
         return Merged(MergeStatus.COMMITTED, commit, steps.conflicted, steps.preResolved)
@@ -204,13 +216,19 @@ class OctopusMerger(
         toMerge.forEachIndexed { index, (name, hash) ->
             progress.checkCanceled()
             progress.step("Merging $name (${index + 1}/${toMerge.size})")
-            val step = git.run(buildList {
-                addAll(listOf("merge", "--no-ff", "--no-log", "--no-verify", "--no-gpg-sign"))
-                if (options.allowUnrelatedHistories) add("--allow-unrelated-histories")
-                options.conflictStrategy.gitOption?.let { add("-X"); add(it) }
-                add("-m"); add("octopus-merge step: $name")
-                add(hash)
-            })
+            val step = git.run(
+                buildList {
+                    addAll(listOf("merge", "--no-ff", "--no-log", "--no-verify", "--no-gpg-sign"))
+                    if (options.allowUnrelatedHistories) add("--allow-unrelated-histories")
+                    options.conflictStrategy.gitOption?.let {
+                        add("-X")
+                        add(it)
+                    }
+                    add("-m")
+                    add("octopus-merge step: $name")
+                    add(hash)
+                },
+            )
             if (step.success) return@forEachIndexed
 
             if (repo.unmergedFiles().isEmpty()) throw MergeException("Merging $name failed:\n${step.errorText}")
@@ -267,7 +285,9 @@ class OctopusMerger(
         val subject = request.message?.takeIf { it.isNotBlank() } ?: MergeMessage.subject(request.target, toMerge.map { it.first })
         val log = if (options.appendLog) {
             MergeMessage.logSection(toMerge.associate { (name, hash) -> name to repo.subjects(originalHead, hash) })
-        } else null
+        } else {
+            null
+        }
         val signoff = if (options.signoff) repo.committerIdent() else null
         return MergeMessage.build(subject, log, signoff)
     }
@@ -280,7 +300,11 @@ class OctopusMerger(
         progress.filesChanged()
     }
 
-    private fun deleteBranches(target: String, toMerge: List<Pair<String, String>>, commit: String): Pair<Map<String, String>, List<String>> {
+    private fun deleteBranches(
+        target: String,
+        toMerge: List<Pair<String, String>>,
+        commit: String,
+    ): Pair<Map<String, String>, List<String>> {
         val deleted = linkedMapOf<String, String>()
         val notDeleted = mutableListOf<String>()
         for ((name, hash) in toMerge) {

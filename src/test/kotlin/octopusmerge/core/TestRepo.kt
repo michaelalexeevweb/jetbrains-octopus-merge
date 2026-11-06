@@ -59,7 +59,9 @@ class TestRepo(val dir: File = Files.createTempDirectory("octopus-merge-test").t
 
     fun currentBranch(): String = invoke("rev-parse", "--abbrev-ref", "HEAD")
 
-    fun parents(revision: String = "HEAD"): List<String> = invoke("log", "-1", "--format=%P", revision).split(" ").filter { it.isNotEmpty() }
+    fun parents(revision: String = "HEAD"): List<String> = invoke("log", "-1", "--format=%P", revision).split(" ").filter {
+        it.isNotEmpty()
+    }
 
     fun message(revision: String = "HEAD"): String = invoke("log", "-1", "--format=%B", revision).trim()
 

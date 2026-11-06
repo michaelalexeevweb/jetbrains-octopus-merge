@@ -1,5 +1,13 @@
 package octopusmerge.core
 
+enum class SelectionProblem {
+    /** No local branch to merge into. */
+    NO_TARGET,
+
+    /** Fewer than two branches checked: one branch is a regular merge. */
+    TOO_FEW_BRANCHES,
+}
+
 /**
  * State of the dialog independent of Swing: available branches, target, the checked branches
  * in merge order, filtering and validation.
@@ -55,9 +63,9 @@ class BranchSelection(localBranches: Collection<String>, remoteBranches: Collect
         return allBranches.filter { branch -> branch != target && matcher.matches(branch) }
     }
 
-    fun validate(): String? = when {
-        target == null -> "Choose the branch to merge into"
-        ordered.size < 2 -> "Select at least two branches (for one branch use the regular Merge)"
+    fun validate(): SelectionProblem? = when {
+        target == null -> SelectionProblem.NO_TARGET
+        ordered.size < 2 -> SelectionProblem.TOO_FEW_BRANCHES
         else -> null
     }
 

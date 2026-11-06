@@ -23,7 +23,7 @@ class ConflictsTest {
                 "",
                 "100644 $b 2\tтекст.md",
                 "100644 $c 3\tтекст.md",
-            )
+            ),
         )
 
         assertEquals(

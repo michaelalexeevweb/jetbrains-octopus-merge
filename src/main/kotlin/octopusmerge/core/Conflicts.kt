@@ -9,12 +9,7 @@ data class ConflictSide(val mode: String, val blob: String)
  * A conflicted file with its three versions, exactly as git records them in the index
  * (stage 1 base, 2 ours, 3 theirs). A missing side means the file was added or deleted there.
  */
-data class FileConflict(
-    val path: String,
-    val base: ConflictSide?,
-    val ours: ConflictSide?,
-    val theirs: ConflictSide?,
-) {
+data class FileConflict(val path: String, val base: ConflictSide?, val ours: ConflictSide?, val theirs: ConflictSide?) {
     /** Both sides have content, so it can be resolved in a text merge window. */
     val isContentConflict: Boolean get() = ours != null && theirs != null
 

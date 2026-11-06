@@ -111,13 +111,13 @@ class BranchSelectionTest {
     @Test
     fun `validation needs a target and two branches`() {
         val s = selection()
-        assertTrue(s.validate()!!.contains("two"))
+        assertEquals(SelectionProblem.TOO_FEW_BRANCHES, s.validate())
         s.setSelected("develop", true)
-        assertTrue(s.validate()!!.contains("two"))
+        assertEquals(SelectionProblem.TOO_FEW_BRANCHES, s.validate())
         s.setSelected("feature/a", true)
         assertNull(s.validate())
 
-        assertTrue(BranchSelection(emptyList(), listOf("origin/x"), null).validate()!!.contains("merge into"))
+        assertEquals(SelectionProblem.NO_TARGET, BranchSelection(emptyList(), listOf("origin/x"), null).validate())
     }
 
     @Test

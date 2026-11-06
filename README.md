@@ -72,11 +72,14 @@ a prepared `--no-commit` merge has **Commit…** and **Abort**.
 
 ## Build
 
-Needs JDK 25 (or the JBR bundled with the IDE). The IDE to build against is `localIdePath` in `gradle.properties`.
+Needs the IDE to build against: `localIdePath` in `gradle.properties`. `make` runs Gradle on that IDE's bundled JBR,
+whatever `JAVA_HOME` says.
 
 ```bash
-./gradlew test          # core tests on real git repositories + IDE integration tests
-./gradlew buildPlugin   # build/distributions/JetbrainsOctopusMerge-<version>.zip
-./gradlew verifyPlugin  # JetBrains Plugin Verifier against the local IDE
-./gradlew runIde        # sandbox IDE with the plugin
+make check          # ktlint + tests (core on real git repositories, IDE integration) + Plugin Verifier + plugin zip
+make release-check  # before tagging: clean tree, new version, change-notes and docs images in place, then check
+make format         # fix Kotlin formatting (Kotlin coding conventions, see .editorconfig)
+make run            # sandbox IDE with the plugin
 ```
+
+User-visible texts live in `src/main/resources/messages/OctopusMergeBundle.properties`.

@@ -35,7 +35,9 @@ class ResolveInAdvanceTest {
 
     /** Resolves every conflict of [branch] in the preview, the way the dialog does. */
     private fun resolveInPreview(branch: String, content: (FileConflict) -> String) {
-        val conflicts = analyzer.analyze("main", listOf("b1", "b2", "b3"), resolutions = resolutions).single { it.branch == branch }.conflicts
+        val conflicts = analyzer.analyze("main", listOf("b1", "b2", "b3"), resolutions = resolutions).single {
+            it.branch == branch
+        }.conflicts
         conflicts.forEach { resolutions.put(it, content(it).toByteArray()) }
     }
 

@@ -1,5 +1,5 @@
 // Based on git4idea.ui.ComboBoxWithAutoCompletion from intellij-community (Apache 2.0, Copyright 2000-2025 JetBrains s.r.o.).
-package octopusmerge.ide
+package octopusmerge.ide.dialog
 
 import com.intellij.codeInsight.AutoPopupController
 import com.intellij.codeInsight.completion.PrefixMatcher

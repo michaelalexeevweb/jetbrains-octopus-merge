@@ -35,7 +35,13 @@ interface GitExecutor {
 
         /** Plumbing run through [runRaw]: needs exact bytes, stdin or a private index. */
         val RAW_COMMANDS_USED: Set<String> = setOf(
-            "cat-file", "hash-object", "ls-files", "merge-tree", "read-tree", "update-index", "write-tree",
+            "cat-file",
+            "hash-object",
+            "ls-files",
+            "merge-tree",
+            "read-tree",
+            "update-index",
+            "write-tree",
         )
     }
 
@@ -89,7 +95,10 @@ class ProcessGitExecutor(
     private fun exec(args: List<String>, config: List<String>, input: ByteArray?, env: Map<String, String>): GitResult {
         val command = buildList {
             add(gitBinary)
-            config.forEach { add("-c"); add(it) }
+            config.forEach {
+                add("-c")
+                add(it)
+            }
             addAll(args)
         }
         val process = ProcessBuilder(command)

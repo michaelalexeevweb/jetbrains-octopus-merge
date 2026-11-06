@@ -55,7 +55,8 @@ class MergeAnalyzer(private val git: GitExecutor) {
         options: MergeOptions = MergeOptions(),
         resolutions: Resolutions = Resolutions(),
     ): List<BranchAnalysis> {
-        val targetHash = repo.resolveCommit(target) ?: return branches.map { BranchAnalysis(it, BranchState.ERROR, error = "Unknown target: $target") }
+        val targetHash =
+            repo.resolveCommit(target) ?: return branches.map { BranchAnalysis(it, BranchState.ERROR, error = "Unknown target: $target") }
         val hashes = branches.associateWith { repo.resolveCommit(it) }
         val (toMerge, _) = repo.reduceHeads(targetHash, hashes.mapNotNull { (name, hash) -> hash?.let { name to it } })
         val mergedNames = toMerge.map { it.first }.toSet()
@@ -69,12 +70,18 @@ class MergeAnalyzer(private val git: GitExecutor) {
             }
             val commits = repo.commitCount(targetHash, hash)
 
-            val result = git.runRaw(buildList {
-                addAll(listOf("merge-tree", "--write-tree", "-z", "--no-messages"))
-                if (options.allowUnrelatedHistories) add("--allow-unrelated-histories")
-                options.conflictStrategy.gitOption?.let { add("-X"); add(it) }
-                add(current); add(hash)
-            })
+            val result = git.runRaw(
+                buildList {
+                    addAll(listOf("merge-tree", "--write-tree", "-z", "--no-messages"))
+                    if (options.allowUnrelatedHistories) add("--allow-unrelated-histories")
+                    options.conflictStrategy.gitOption?.let {
+                        add("-X")
+                        add(it)
+                    }
+                    add(current)
+                    add(hash)
+                },
+            )
             val records = result.records
             val tree = records.firstOrNull()?.trim()
             if (result.exitCode !in 0..1 || tree.isNullOrEmpty()) {
@@ -86,7 +93,9 @@ class MergeAnalyzer(private val git: GitExecutor) {
             val fullyResolved = conflicts.isNotEmpty() && resolved.size == conflicts.size
             val resultTree = if (fullyResolved) {
                 repo.treeWithFiles(tree, resolved.associate { it.path to (it.ours!!.mode to resolutions.get(it)!!) })
-            } else tree
+            } else {
+                tree
+            }
 
             current = git.output(
                 listOf("commit-tree", resultTree, "-p", current, "-p", hash, "-m", "octopus-merge preview"),

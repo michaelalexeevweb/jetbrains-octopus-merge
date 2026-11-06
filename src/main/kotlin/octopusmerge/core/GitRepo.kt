@@ -8,16 +8,14 @@ class GitRepo(val git: GitExecutor) {
     fun resolveCommit(revision: String): String? =
         git.run("rev-parse", "--verify", "--quiet", "$revision^{commit}").takeIf { it.success }?.output
 
-    fun requireCommit(revision: String): String =
-        resolveCommit(revision) ?: throw MergeException("Unknown branch or revision: $revision")
+    fun requireCommit(revision: String): String = resolveCommit(revision) ?: throw MergeException("Unknown branch or revision: $revision")
 
     fun head(): String = requireCommit("HEAD")
 
     /** Current branch name, or null on a detached HEAD. */
     fun currentBranch(): String? = git.output("rev-parse", "--abbrev-ref", "HEAD").takeIf { it != "HEAD" }
 
-    fun isLocalBranch(name: String): Boolean =
-        git.run("rev-parse", "--verify", "--quiet", "refs/heads/$name").success
+    fun isLocalBranch(name: String): Boolean = git.run("rev-parse", "--verify", "--quiet", "refs/heads/$name").success
 
     fun isAncestor(ancestor: String, descendant: String): Boolean =
         git.run("merge-base", "--is-ancestor", ancestor, descendant).exitCode == 0
@@ -29,8 +27,11 @@ class GitRepo(val git: GitExecutor) {
      */
     fun reduceHeads(target: String, branches: List<Pair<String, String>>): Pair<List<Pair<String, String>>, List<String>> {
         val candidates = branches.filter { (_, hash) -> !isAncestor(hash, target) }
-        val independent = if (candidates.isEmpty()) emptySet() else
+        val independent = if (candidates.isEmpty()) {
+            emptySet()
+        } else {
             git.output(listOf("merge-base", "--independent") + candidates.map { it.second }.distinct()).lines().toSet()
+        }
         val seen = mutableSetOf<String>()
         val toMerge = candidates.filter { (_, hash) -> hash in independent && seen.add(hash) }
         val skipped = branches.map { it.first } - toMerge.map { it.first }.toSet()
@@ -39,8 +40,7 @@ class GitRepo(val git: GitExecutor) {
 
     fun hasTrackedChanges(): Boolean = git.output("status", "--porcelain", "--untracked-files=no").isNotEmpty()
 
-    fun unmergedFiles(): List<String> =
-        git.output("diff", "--name-only", "--diff-filter=U").lines().filter { it.isNotBlank() }.distinct()
+    fun unmergedFiles(): List<String> = git.output("diff", "--name-only", "--diff-filter=U").lines().filter { it.isNotBlank() }.distinct()
 
     /** Unmerged files of the merge in progress with their three index versions. */
     fun unmergedConflicts(): List<FileConflict> = FileConflict.parse(git.raw(listOf("ls-files", "-u", "-z")).records)
@@ -100,8 +100,7 @@ class GitRepo(val git: GitExecutor) {
 }
 
 data class GitVersion(val major: Int, val minor: Int, val patch: Int) : Comparable<GitVersion> {
-    override fun compareTo(other: GitVersion): Int =
-        compareValuesBy(this, other, GitVersion::major, GitVersion::minor, GitVersion::patch)
+    override fun compareTo(other: GitVersion): Int = compareValuesBy(this, other, GitVersion::major, GitVersion::minor, GitVersion::patch)
 
     companion object {
         /** `git merge-tree --write-tree`, used for the conflict preview. */

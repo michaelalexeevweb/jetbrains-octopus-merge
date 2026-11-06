@@ -17,6 +17,7 @@ import octopusmerge.core.BranchState
 import octopusmerge.core.FileConflict
 import octopusmerge.core.MergeAnalyzer
 import octopusmerge.core.Resolutions
+import octopusmerge.ide.OctopusMergeBundle.message
 import javax.swing.JComponent
 
 /**
@@ -24,11 +25,7 @@ import javax.swing.JComponent
  * on in-memory copies. Nothing on disk changes; the result goes to [resolutions] and is applied
  * when the real merge hits the same conflict.
  */
-internal class AdvanceResolver(
-    private val project: Project,
-    private val repository: GitRepository,
-    private val resolutions: Resolutions,
-) {
+internal class AdvanceResolver(private val project: Project, private val repository: GitRepository, private val resolutions: Resolutions) {
     private class Versions(val conflict: FileConflict, val base: ByteArray?, val ours: ByteArray, val theirs: ByteArray)
 
     /** Returns true when at least one resolution was added or removed. Call on the EDT. */
@@ -40,8 +37,8 @@ internal class AdvanceResolver(
         if (info.state == BranchState.RESOLVED) {
             val again = Messages.showYesNoDialog(
                 parent,
-                "Conflicts of ${info.branch} are already resolved. Resolve them again?",
-                "Octopus Merge",
+                message("advance.resolve.again", info.branch),
+                message("advance.title"),
                 Messages.getQuestionIcon(),
             )
             if (again != Messages.YES) return false
@@ -52,7 +49,7 @@ internal class AdvanceResolver(
         val todo = content.filterNot(resolutions::has)
         if (todo.isEmpty()) {
             if (structural.isNotEmpty()) {
-                Messages.showInfoMessage(parent, structuralNote(structural), "Octopus Merge")
+                Messages.showInfoMessage(parent, structuralNote(structural), message("advance.title"))
             }
             return changed
         }
@@ -62,7 +59,7 @@ internal class AdvanceResolver(
             ThrowableComputable<List<Versions>, Exception> {
                 todo.map { Versions(it, it.base?.let(analyzer::blob), analyzer.blob(it.ours!!), analyzer.blob(it.theirs!!)) }
             },
-            "Loading Conflicting Versions",
+            message("advance.loading"),
             true,
             project,
         )
@@ -79,10 +76,10 @@ internal class AdvanceResolver(
         }
 
         val notes = buildList {
-            if (skippedBinary.isNotEmpty()) add("Binary files are resolved during the merge: ${skippedBinary.joinToString()}")
+            if (skippedBinary.isNotEmpty()) add(message("advance.binary.skipped", skippedBinary.joinToString()))
             if (structural.isNotEmpty()) add(structuralNote(structural))
         }
-        if (notes.isNotEmpty()) Messages.showInfoMessage(parent, notes.joinToString("\n\n"), "Octopus Merge")
+        if (notes.isNotEmpty()) Messages.showInfoMessage(parent, notes.joinToString("\n\n"), message("advance.title"))
         return changed
     }
 
@@ -93,7 +90,13 @@ internal class AdvanceResolver(
         val texts = listOf(ours, String(file.base ?: ByteArray(0), Charsets.UTF_8), String(file.theirs, Charsets.UTF_8))
             .map { StringUtil.convertLineSeparators(it) }
         val document = EditorFactory.getInstance().createDocument(texts[0])
-        val leftTitle = if (position <= 1) "$target (target)" else "$target with ${position - 1} branch(es) merged before"
+        val leftTitle = if (position <=
+            1
+        ) {
+            message("advance.left.target", target)
+        } else {
+            message("advance.left.merged.before", target, position - 1)
+        }
 
         var outcome = MergeResult.CANCEL
         val request = DiffRequestFactory.getInstance().createMergeRequest(
@@ -101,8 +104,8 @@ internal class AdvanceResolver(
             FileTypeManager.getInstance().getFileTypeByFileName(file.conflict.path),
             document,
             texts,
-            "Resolve in Advance: ${file.conflict.path} ($branch into $target)",
-            listOf(leftTitle, "Base", "$branch (merging)"),
+            message("advance.window.title", file.conflict.path, branch, target),
+            listOf(leftTitle, message("advance.base"), message("advance.right", branch)),
             Consumer { outcome = it },
         )
         DiffManager.getInstance().showMerge(project, request)
@@ -110,6 +113,5 @@ internal class AdvanceResolver(
         return StringUtil.convertLineSeparators(document.text, separator).toByteArray(Charsets.UTF_8)
     }
 
-    private fun structuralNote(conflicts: List<FileConflict>): String =
-        "Added, deleted or renamed files are resolved during the merge: ${conflicts.joinToString { it.path }}"
+    private fun structuralNote(conflicts: List<FileConflict>): String = message("advance.structural", conflicts.joinToString { it.path })
 }

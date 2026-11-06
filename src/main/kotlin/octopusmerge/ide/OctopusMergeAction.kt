@@ -10,6 +10,7 @@ import com.intellij.vcs.log.VcsLogDataKeys
 import git4idea.repo.GitRepository
 import git4idea.repo.GitRepositoryManager
 import octopusmerge.core.MergeRequest
+import octopusmerge.ide.dialog.OctopusMergeDialog
 
 internal class OctopusMergeAction : DumbAwareAction() {
 
@@ -55,8 +56,10 @@ internal class OctopusMergeAction : DumbAwareAction() {
             if (repository != null) {
                 val branches = commits.mapNotNull { commit ->
                     val collection = repository.branches
-                    (collection.findLocalBranchesByHash(commit.hash).firstOrNull()
-                        ?: collection.findRemoteBranchesByHash(commit.hash).firstOrNull())?.name
+                    (
+                        collection.findLocalBranchesByHash(commit.hash).firstOrNull()
+                            ?: collection.findRemoteBranchesByHash(commit.hash).firstOrNull()
+                        )?.name
                 }
                 return repository to branches
             }

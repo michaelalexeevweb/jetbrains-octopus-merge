@@ -55,9 +55,18 @@
     </ul>
     <p>After the merge, the notification offers <b>Undo</b>: the target returns to its previous commit and deleted
     branches are recreated.</p>
+
+    <h3>Problems and ideas</h3>
+    <p><a href="https://github.com/michaelalexeevweb/jetbrains-octopus-merge/issues/new">Report a problem or suggest a feature</a>
+    on GitHub. Please add your IDE and plugin versions (<i>Help | About</i>).
+    Errors of the plugin can also be reported from the IDE error dialog and from failed merge notifications.</p>
     ]]></description>
 
     <change-notes><![CDATA[
+    <h3>0.2.5</h3>
+    <ul>
+      <li><i>Report a problem or suggest a feature</i> link in the plugin description</li>
+    </ul>
     <h3>0.2.4</h3>
     <ul>
       <li>Report plugin errors from the IDE error dialog as a prefilled GitHub issue</li>

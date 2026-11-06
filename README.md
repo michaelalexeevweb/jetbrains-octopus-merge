@@ -74,8 +74,10 @@ a prepared `--no-commit` merge has **Commit…** and **Abort**.
 
 - An error of the plugin in the IDE error dialog (red icon in the status bar): **Report to Octopus Merge on GitHub**.
 - A failed merge or undo: **Report a problem…** in the notification.
+- Anything else: the **Report a problem or suggest a feature** link on the plugin page
+  (Settings → Plugins → Octopus Merge) opens a [new issue](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/issues/new).
 
-Both open a prefilled [GitHub issue](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/issues) in the browser
+The first two open a prefilled [GitHub issue](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/issues) in the browser
 with the error and the IDE, plugin and OS versions. The plugin sends nothing itself: review the text and submit it.
 For more detail attach the log: Help → Collect Logs and Diagnostic Data. Git commands are logged at debug level:
 Help → Diagnostic Tools → Debug Log Settings → `#octopusmerge`.

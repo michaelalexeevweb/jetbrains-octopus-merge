@@ -1,0 +1,34 @@
+<idea-plugin>
+    <id>octopusmerge</id>
+    <name>Octopus Merge</name>
+    <vendor>Michael Alexeev</vendor>
+    <description><![CDATA[
+    Merge several Git branches into one with a single merge commit (octopus merge).
+    <ul>
+      <li>Pick the target branch and any number of branches to merge, with search</li>
+      <li>Branches selected in the Git tool window are pre-checked</li>
+      <li>Conflicts are resolved in the standard IDE merge dialog, branch by branch;
+          the result is still one commit whose parents are the target and every merged branch</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.platform.vcs</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Octopus Merge" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <action id="OctopusMerge.Merge"
+                class="octopusmerge.ide.OctopusMergeAction"
+                text="Octopus Merge…"
+                description="Merge several branches into one with a single merge commit"
+                icon="AllIcons.Vcs.Merge">
+            <add-to-group group-id="Git.MainMenu" anchor="after" relative-to-action="Git.Merge"/>
+            <add-to-group group-id="Git.Branch" anchor="last"/>
+            <add-to-group group-id="Git.Log.ContextMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

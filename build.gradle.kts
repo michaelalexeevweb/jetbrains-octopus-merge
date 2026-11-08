@@ -10,6 +10,13 @@ plugins {
 group = "io.github.michaelalexeevweb"
 version = "0.2.6"
 
+/**
+ * The IDE to build, test and run against: the local install from `localIdePath` when it exists
+ * (no download, matches what `make run` starts), else PhpStorm [platformVersion] from JetBrains (CI).
+ */
+val localIde: File? = providers.gradleProperty("localIdePath").orNull?.let(::file)?.takeIf { it.isDirectory }
+val platformVersion: String = providers.gradleProperty("platformVersion").get()
+
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -26,7 +33,7 @@ dependencies {
     testRuntimeOnly("junit:junit:4.13.2")
 
     intellijPlatform {
-        local(providers.gradleProperty("localIdePath"))
+        if (localIde != null) local(localIde) else create(IntelliJPlatformType.PhpStorm, platformVersion)
         bundledPlugin("com.intellij.platform.vcs")
         bundledPlugin("Git4Idea")
         testFramework(TestFrameworkType.Platform)
@@ -48,10 +55,14 @@ intellijPlatform {
     instrumentCode = false
     pluginVerification {
         ides {
-            local(file(providers.gradleProperty("localIdePath").get()))
+            if (localIde != null) local(localIde) else create(IntelliJPlatformType.PhpStorm, platformVersion)
             // The plugin needs only Git4Idea, so it installs into any IDE: check IntelliJ IDEA as well.
-            create(IntelliJPlatformType.IntellijIdea, "2026.3")
+            create(IntelliJPlatformType.IntellijIdea, platformVersion)
         }
+    }
+    publishing {
+        // JetBrains Marketplace token (Profile | My Tokens), read by `make publish`. Never committed.
+        token = providers.environmentVariable("PUBLISH_TOKEN")
     }
     pluginConfiguration {
         ideaVersion {

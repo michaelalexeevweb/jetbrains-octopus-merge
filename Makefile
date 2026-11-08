@@ -9,7 +9,7 @@ VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' build.gradle.kts)
 ZIP := build/distributions/JetbrainsOctopusMerge-$(VERSION).zip
 GRADLE := ./gradlew --console=plain
 
-.PHONY: help lint format test verify build run check release-ready release-check clean
+.PHONY: help lint format test verify build run check release-ready release-check publish clean
 
 help:
 	@echo "make lint           ktlint: Kotlin coding conventions (.editorconfig)"
@@ -21,6 +21,7 @@ help:
 	@echo "make check          lint + test + verify + build"
 	@echo "make release-ready  quick: clean tree, new version, change-notes, docs images"
 	@echo "make release-check  release-ready + check: run before tagging $(VERSION)"
+	@echo "make publish        upload $(ZIP) to JetBrains Marketplace (needs PUBLISH_TOKEN)"
 
 lint:
 	$(GRADLE) ktlintCheck
@@ -54,6 +55,11 @@ release-ready:
 
 release-check: release-ready check
 	@echo "release $(VERSION) is ready: $(ZIP)"
+
+publish:
+	@test -n "$$PUBLISH_TOKEN" || { echo "set PUBLISH_TOKEN to a JetBrains Marketplace token (Profile | My Tokens)"; exit 1; }
+	@git describe --exact-match --tags HEAD >/dev/null 2>&1 || { echo "HEAD is not tagged: tag the release first"; exit 1; }
+	$(GRADLE) publishPlugin
 
 clean:
 	$(GRADLE) clean

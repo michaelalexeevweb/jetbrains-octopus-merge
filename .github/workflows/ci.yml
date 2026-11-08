@@ -1,0 +1,37 @@
+name: CI
+
+# Every push to master and every pull request; also by hand (Actions | CI | Run workflow).
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+# The job only reads the repository. Least privilege for the token, whatever the org default.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, tests, Plugin Verifier, plugin zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # Validates the Gradle wrapper and caches dependencies, including the downloaded IDEs.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      # There is no local IDE on the runner, so the build downloads PhpStorm `platformVersion`
+      # (gradle.properties) and Plugin Verifier checks it and IntelliJ IDEA of that version.
+      - name: Check
+        run: ./gradlew --console=plain ktlintCheck test verifyPlugin buildPlugin

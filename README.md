@@ -1,6 +1,7 @@
 # Octopus Merge
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/blob/master/LICENSE)
+[![CI](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/michaelalexeevweb/jetbrains-octopus-merge)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest)
 
 JetBrains IDE plugin: merge several Git branches into one with a single merge commit
@@ -87,14 +88,16 @@ Help → Diagnostic Tools → Debug Log Settings → `#octopusmerge`.
 
 ## Build
 
-Needs the IDE to build against: `localIdePath` in `gradle.properties`. `make` runs Gradle on that IDE's bundled JBR,
-whatever `JAVA_HOME` says.
+Builds against the IDE at `localIdePath` in `gradle.properties`; `make` runs Gradle on that IDE's bundled JBR,
+whatever `JAVA_HOME` says. Without a local IDE (CI) Gradle downloads PhpStorm `platformVersion` instead.
+CI runs lint, tests, Plugin Verifier and the plugin zip on every push and pull request.
 
 ```bash
 make check          # ktlint + tests (core on real git repositories, IDE integration) + Plugin Verifier + plugin zip
 make release-check  # before tagging: clean tree, new version, change-notes and docs images in place, then check
 make format         # fix Kotlin formatting (Kotlin coding conventions, see .editorconfig)
 make run            # sandbox IDE with the plugin
+make publish        # upload the tagged release to JetBrains Marketplace (PUBLISH_TOKEN from Profile | My Tokens)
 ```
 
 User-visible texts live in `src/main/resources/messages/OctopusMergeBundle.properties`.

@@ -1,6 +1,8 @@
 package octopusmerge.core
 
-class MergeCancelledException(message: String) : MergeException(message)
+/** The merge was cancelled: by the user, or because conflicts were left unresolved. */
+class MergeCancelledException(problem: MergeProblem, rollbackNotes: List<RollbackNote> = emptyList()) :
+    MergeException(problem, rollbackNotes)
 
 /**
  * Merges several branches into a target with one commit whose parents are the target
@@ -23,11 +25,11 @@ class OctopusMerger(
 
     fun merge(request: MergeRequest): MergeOutcome {
         val options = request.options
-        repo.operationInProgress()?.let { throw MergeException("A $it is in progress. Finish or abort it first.") }
-        if (!repo.isLocalBranch(request.target)) throw MergeException("Target must be a local branch: ${request.target}")
+        repo.operationInProgress()?.let { throw MergeException(MergeProblem.OperationInProgress(it)) }
+        if (!repo.isLocalBranch(request.target)) throw MergeException(MergeProblem.NotLocalBranch(request.target))
 
         val requested = request.branches.distinct().filter { it != request.target }
-        if (requested.isEmpty()) throw MergeException("Select branches to merge.")
+        if (requested.isEmpty()) throw MergeException(MergeProblem.NoBranches)
         val resolved = requested.map { it to repo.requireCommit(it) }
 
         val startBranch = repo.currentBranch()
@@ -35,19 +37,19 @@ class OctopusMerger(
         var stashed = false
         if (repo.hasTrackedChanges()) {
             if (!options.autoStash) {
-                throw MergeException("There are uncommitted changes. Commit or stash them, or enable auto-stash.")
+                throw MergeException(MergeProblem.UncommittedChanges)
             }
-            progress.step("Stashing local changes")
+            progress.step(MergeStep.Stashing)
             git.output("stash", "push", "-m", "octopus-merge: autostash before merging into ${request.target}")
             stashed = true
             progress.filesChanged()
         }
 
         var switched = false
-        val rollbackNotes = mutableListOf<String>()
+        val rollbackNotes = mutableListOf<RollbackNote>()
         try {
             if (startBranch != request.target) {
-                progress.step("Checking out ${request.target}")
+                progress.step(MergeStep.CheckingOut(request.target))
                 git.output("checkout", "--quiet", request.target)
                 switched = true
                 progress.filesChanged()
@@ -70,7 +72,7 @@ class OctopusMerger(
                 performMerge(request, toMerge, originalHead, message)
             } catch (e: Throwable) {
                 progress.nonCancellable { runCatching { restoreHead(originalHead) } }
-                    .onFailure { rollbackNotes += "Could not reset ${request.target} to ${originalHead.take(SHORT_HASH)}: ${it.message}" }
+                    .onFailure { rollbackNotes += RollbackNote.ResetFailed(request.target, originalHead, it.message) }
                 throw e
             }
             progress.filesChanged()
@@ -96,10 +98,10 @@ class OctopusMerger(
             progress.nonCancellable {
                 if (switched) {
                     runCatching { git.output("checkout", "--quiet", startBranch ?: startHead) }
-                        .onFailure { rollbackNotes += "Could not switch back to ${startBranch ?: startHead}: ${it.message}" }
+                        .onFailure { rollbackNotes += RollbackNote.SwitchBackFailed(startBranch ?: startHead, it.message) }
                 }
                 if (stashed && runCatching { popStash() }.getOrDefault(StashStatus.KEPT) == StashStatus.KEPT) {
-                    rollbackNotes += "Your local changes are kept in the stash (git stash list)."
+                    rollbackNotes += RollbackNote.StashKept
                 }
                 runCatching { progress.filesChanged() }
             }
@@ -108,14 +110,14 @@ class OctopusMerger(
     }
 
     /** Adds what the rollback could not restore to the error, so the user is never told everything is back. */
-    private fun rollbackError(e: Throwable, notes: List<String>): Throwable {
+    private fun rollbackError(e: Throwable, notes: List<RollbackNote>): Throwable {
         if (notes.isEmpty()) return e
-        fun text(first: String?) = (listOf(first.orEmpty()) + notes).joinToString("\n")
+        // The last case is a bug, not a merge problem: the notes only go to the log with it.
         return when {
-            e is MergeCancelledException -> MergeCancelledException(text(e.message))
-            e is MergeException -> MergeException(text(e.message))
-            progress.isCanceled -> MergeCancelledException(text("The merge was cancelled."))
-            else -> e.apply { addSuppressed(MergeException(notes.joinToString("\n"))) }
+            e is MergeCancelledException -> MergeCancelledException(e.problem, e.rollbackNotes + notes)
+            e is MergeException -> MergeException(e.problem, e.rollbackNotes + notes)
+            progress.isCanceled -> MergeCancelledException(MergeProblem.Cancelled, notes)
+            else -> e.apply { addSuppressed(IllegalStateException("Rollback incomplete: $notes")) }
         }
     }
 
@@ -123,9 +125,9 @@ class OctopusMerger(
     fun undo(outcome: MergeOutcome) {
         when (outcome.status) {
             MergeStatus.COMMITTED -> {
-                if (repo.currentBranch() != outcome.target) throw MergeException("Check out ${outcome.target} to undo the merge.")
-                if (repo.head() != outcome.commit) throw MergeException("${outcome.target} has moved since the merge; undo it manually.")
-                if (repo.hasTrackedChanges()) throw MergeException("There are uncommitted changes. Commit or stash them first.")
+                if (repo.currentBranch() != outcome.target) throw MergeException(MergeProblem.UndoNeedsCheckout(outcome.target))
+                if (repo.head() != outcome.commit) throw MergeException(MergeProblem.TargetMoved(outcome.target))
+                if (repo.hasTrackedChanges()) throw MergeException(MergeProblem.UndoUncommittedChanges)
                 git.output("reset", "--keep", outcome.originalHead)
                 outcome.deletedBranches.forEach { (name, hash) ->
                     if (!repo.isLocalBranch(name)) git.output("branch", name, hash)
@@ -133,7 +135,7 @@ class OctopusMerger(
             }
 
             MergeStatus.PREPARED -> {
-                if (!repo.gitPath("MERGE_HEAD").exists()) throw MergeException("The prepared merge is no longer in progress.")
+                if (!repo.gitPath("MERGE_HEAD").exists()) throw MergeException(MergeProblem.PreparedMergeGone)
                 git.output("reset", "--merge")
                 if (outcome.stash == StashStatus.KEPT) popStash()
             }
@@ -156,7 +158,7 @@ class OctopusMerger(
         val options = request.options
         val names = toMerge.map { it.first }
         progress.checkCanceled()
-        progress.step("Merging ${names.joinToString(", ")}")
+        progress.step(MergeStep.MergingAll(names))
 
         val native = git.run(
             buildList {
@@ -188,7 +190,7 @@ class OctopusMerger(
         restoreHead(originalHead)
         val steps = mergeOneByOne(request, toMerge)
 
-        progress.step("Creating merge commit")
+        progress.step(MergeStep.CreatingCommit)
         val tree = git.output("rev-parse", "HEAD^{tree}")
         val stepHead = repo.head()
         val hashes = toMerge.map { it.second }
@@ -227,7 +229,7 @@ class OctopusMerger(
         val preResolved = mutableListOf<String>()
         toMerge.forEachIndexed { index, (name, hash) ->
             progress.checkCanceled()
-            progress.step("Merging $name (${index + 1}/${toMerge.size})")
+            progress.step(MergeStep.MergingOne(name, index + 1, toMerge.size))
             val step = git.run(
                 buildList {
                     addAll(listOf("merge", "--no-ff", "--no-log", "--no-verify", "--no-gpg-sign"))
@@ -243,7 +245,7 @@ class OctopusMerger(
             )
             if (step.success) return@forEachIndexed
 
-            if (repo.unmergedFiles().isEmpty()) throw MergeException("Merging $name failed:\n${step.errorText}")
+            if (repo.unmergedFiles().isEmpty()) throw MergeException(MergeProblem.StepFailed(name, step.errorText))
 
             applyResolutions(request.resolutions)
             val files = repo.unmergedFiles()
@@ -257,7 +259,7 @@ class OctopusMerger(
             val resolvedAll = resolver.resolve(ConflictStep(name, request.target, index + 1, toMerge.size, files))
             progress.checkCanceled()
             if (!resolvedAll || repo.unmergedFiles().isNotEmpty()) {
-                throw MergeCancelledException("Conflicts in $name were not resolved. The merge was rolled back.")
+                throw MergeCancelledException(MergeProblem.ConflictsNotResolved(name))
             }
             git.output("commit", "--no-verify", "--no-gpg-sign", "--no-edit")
             conflicted += name
@@ -278,7 +280,7 @@ class OctopusMerger(
 
     private fun runHook(name: String, vararg args: String) {
         val result = git.run(listOf("hook", "run", "--ignore-missing", name) + if (args.isEmpty()) emptyList() else listOf("--") + args)
-        if (!result.success) throw MergeException("The $name hook failed:\n${result.errorText}")
+        if (!result.success) throw MergeException(MergeProblem.HookFailed(name, result.errorText))
     }
 
     private fun commitMsgHook(message: String): String {
@@ -328,11 +330,7 @@ class OctopusMerger(
     }
 
     private fun popStash(): StashStatus {
-        progress.step("Restoring local changes")
+        progress.step(MergeStep.RestoringStash)
         return if (git.run("stash", "pop").success) StashStatus.RESTORED else StashStatus.KEPT
-    }
-
-    private companion object {
-        const val SHORT_HASH = 8
     }
 }

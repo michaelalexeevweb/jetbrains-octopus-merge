@@ -37,14 +37,14 @@ internal class OctopusMergeTask(project: Project, private val repository: GitRep
         } catch (e: MergeCancelledException) {
             LOG.info("Octopus merge into ${request.target} cancelled: ${e.message}")
             if (indicator.isCanceled) {
-                rollbackProblem = e.message
+                rollbackProblem = CoreTexts.error(e)
             } else {
-                notify(project, message("notification.cancelled.title"), html(e.message), WARNING)
+                notify(project, message("notification.cancelled.title"), html(CoreTexts.error(e)), WARNING)
             }
         } catch (e: MergeException) {
             LOG.warn("Octopus merge into ${request.target} failed", e)
             val title = message("notification.failed.title")
-            notifyFailure(project, title, e, message("report.failed.title", e.message.orEmpty().lineSequence().first()))
+            notifyFailure(project, title, e, message("report.failed.title", CoreTexts.problem(e.problem).lineSequence().first()))
         }
     }
 
@@ -112,7 +112,7 @@ internal class OctopusMergeTask(project: Project, private val repository: GitRep
             } catch (e: MergeException) {
                 LOG.warn("Undo of octopus merge into ${outcome.target} failed", e)
                 val title = message("notification.undo.failed.title")
-                notifyFailure(project, title, e, message("report.undo.failed.title", e.message.orEmpty().lineSequence().first()))
+                notifyFailure(project, title, e, message("report.undo.failed.title", CoreTexts.problem(e.problem).lineSequence().first()))
             }
         }
     }
@@ -144,10 +144,11 @@ internal class OctopusMergeTask(project: Project, private val repository: GitRep
 
         /** An error notification with a link that opens a prefilled GitHub issue. */
         private fun notifyFailure(project: Project, title: String, error: MergeException, issueTitle: String) {
-            notificationGroup().createNotification(title, html(error.message), NotificationType.ERROR)
+            val text = CoreTexts.error(error)
+            notificationGroup().createNotification(title, html(text), NotificationType.ERROR)
                 .addAction(
                     NotificationAction.createSimple(message("notification.action.report")) {
-                        IssueReport.open(issueTitle, error.message.orEmpty(), error.stackTraceToString())
+                        IssueReport.open(issueTitle, text, error.stackTraceToString())
                     },
                 )
                 .notify(project)

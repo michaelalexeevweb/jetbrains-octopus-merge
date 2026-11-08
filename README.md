@@ -3,6 +3,9 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/blob/master/LICENSE)
 [![CI](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/michaelalexeevweb/jetbrains-octopus-merge)](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest)
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/35860?label=marketplace)](https://plugins.jetbrains.com/plugin/35860)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/35860)](https://plugins.jetbrains.com/plugin/35860)
+[![Rating](https://img.shields.io/jetbrains/plugin/r/rating/35860)](https://plugins.jetbrains.com/plugin/35860)
 
 JetBrains IDE plugin: merge several Git branches into one with a single merge commit
 (an octopus merge), with conflict preview and conflict resolution in the IDE merge dialog.
@@ -19,6 +22,11 @@ After: one merge commit on `main` whose parents are the target and all four bran
 
 ## Install
 
+From JetBrains Marketplace: Settings → Plugins → Marketplace → search "Octopus Merge" → Install,
+or open the [plugin page](https://plugins.jetbrains.com/plugin/35860).
+
+From disk:
+
 1. Download `JetbrainsOctopusMerge-<version>.zip` from the [latest release](https://github.com/michaelalexeevweb/jetbrains-octopus-merge/releases/latest).
 2. Settings → Plugins → ⚙ → Install Plugin from Disk… → choose the zip → restart the IDE.
 
@@ -30,10 +38,10 @@ Look for the octopus button <img src="docs/octopus-merge-icon.png" width="16" he
 
 - **Git → Octopus Merge…** (right after Merge…)
 - Main toolbar at the top of the IDE window, next to the run and search buttons
-- Git tool window (`⌘9` on macOS, `Alt+9` on Windows/Linux): branches toolbar, and the context menu
+- Git tool window (`⌘+9` on macOS, `Alt+9` on Windows/Linux): branches toolbar, and the context menu
   of selected branches or commits. The selection is pre-checked.
 - Branch popup (current branch name on the main toolbar)
-- Find Action (`⇧⌘A` / `Ctrl+Shift+A`): type `Octopus`
+- Find Action (`⇧+⌘+A` / `Ctrl+Shift+A`): type `Octopus`
 
 ## Dialog
 
@@ -61,6 +69,26 @@ Look for the octopus button <img src="docs/octopus-merge-icon.png" width="16" he
 | `--no-verify` | skip `pre-merge-commit` / `commit-msg` hooks |
 | `--allow-unrelated-histories` | merge branches with no common history |
 | Delete merged branches | delete merged local branches after the commit |
+
+**Keyboard**: `Alt+<letter>` on Windows/Linux, `⌃+⌥+<letter>` on macOS focuses a field or toggles an option;
+a collapsed Options group expands to show the change.
+
+| Key | Field or option |
+|---|---|
+| `R` | Repository |
+| `I` | Merge into |
+| `M` | Message |
+| `O` | On conflict |
+| `S` | Stash local changes |
+| `C` | Do not commit (`--no-commit`) |
+| `H` | Skip hooks (`--no-verify`) |
+| `L` | List merged commits (`--log`) |
+| `B` | Signed-off-by (`--signoff`) |
+| `G` | GPG-sign (`-S`) |
+| `U` | Allow unrelated histories |
+| `D` | Delete merged local branches |
+
+Enter in the merge order resolves a branch with expected conflicts, otherwise presses Merge.
 
 ## How it merges
 

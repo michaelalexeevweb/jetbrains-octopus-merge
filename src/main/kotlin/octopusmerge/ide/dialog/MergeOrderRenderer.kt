@@ -6,6 +6,7 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import octopusmerge.core.BranchAnalysis
 import octopusmerge.core.BranchState
+import octopusmerge.ide.CoreTexts
 import octopusmerge.ide.OctopusMergeBundle.message
 import javax.swing.Icon
 import javax.swing.JList
@@ -18,7 +19,7 @@ internal object PreviewText {
         val errors = result.filter { it.state == BranchState.ERROR }
         val conflicts = result.filter { it.state == BranchState.CONFLICT }
         val text = when {
-            errors.isNotEmpty() -> message("preview.cannot.merge", errors.joinToString { it.branch }, errors.first().error.orEmpty())
+            errors.isNotEmpty() -> message("preview.cannot.merge", errors.joinToString { it.branch }, errorText(errors.first()))
             conflicts.isNotEmpty() -> message("preview.conflicts", conflicts.joinToString { it.branch })
             result.any { it.state == BranchState.RESOLVED } -> message("preview.all.resolved")
             else -> message("preview.clean")
@@ -59,9 +60,11 @@ internal object PreviewText {
 
             BranchState.ALREADY_MERGED -> message("order.already.merged")
 
-            BranchState.ERROR -> info.error.orEmpty()
+            BranchState.ERROR -> errorText(info)
         }
     }
+
+    private fun errorText(info: BranchAnalysis): String = info.error?.let(CoreTexts::analysisError).orEmpty()
 }
 
 /** A row of the merge order: position, branch and what the preview predicts for it. */

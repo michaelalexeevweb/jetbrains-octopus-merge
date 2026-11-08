@@ -56,8 +56,6 @@ class BranchSelectionTest {
         s.setSelected("feature/a", false)
 
         assertEquals(listOf("develop", "feature/b"), s.selected)
-        assertFalse(s.isSelected("feature/a"))
-        assertTrue(s.isSelected("develop"))
     }
 
     @Test
@@ -126,14 +124,5 @@ class BranchSelectionTest {
         s.selectAll(listOf("feature/b", "develop"))
 
         assertEquals("Merge branches 'feature/b' and 'develop' into main", s.defaultMessage())
-    }
-
-    @Test
-    fun `clear empties the selection`() {
-        val s = selection()
-        s.selectAll(listOf("develop", "feature/a"))
-        s.clear()
-
-        assertTrue(s.selected.isEmpty())
     }
 }

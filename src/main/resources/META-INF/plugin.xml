@@ -12,14 +12,14 @@
     <p><img src="https://raw.githubusercontent.com/michaelalexeevweb/jetbrains-octopus-merge/master/docs/octopus-merge-after.jpg" width="600" alt="Git log after the octopus merge"></p>
 
     <h3>Where to find it</h3>
-    <p>Look for the octopus button <img src="https://raw.githubusercontent.com/michaelalexeevweb/jetbrains-octopus-merge/master/docs/octopus-merge-icon.png" width="16" height="16" alt="Octopus Merge icon">:</p>
+    <p>Look for the octopus button (the plugin icon above):</p>
     <ul>
       <li><b>Git | Octopus Merge…</b>, right below <i>Merge…</i></li>
       <li>The main toolbar at the top of the IDE window, next to the run and search buttons</li>
-      <li>The Git tool window (<code>⌘9</code> on macOS, <code>Alt+9</code> on Windows/Linux): the branches toolbar,
+      <li>The Git tool window (<code>⌘+9</code> on macOS, <code>Alt+9</code> on Windows/Linux): the branches toolbar,
           and the right-click menu of selected branches or commits (they come pre-checked)</li>
       <li>The branch popup (current branch name on the main toolbar)</li>
-      <li><i>Find Action</i> (<code>⇧⌘A</code> / <code>Ctrl+Shift+A</code>): type <code>Octopus</code></li>
+      <li><i>Find Action</i> (<code>⇧+⌘+A</code> / <code>Ctrl+Shift+A</code>): type <code>Octopus</code></li>
     </ul>
 
     <h3>How to use</h3>
@@ -63,6 +63,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <h3>0.3.0</h3>
+    <ul>
+      <li>Every text of the plugin is in the message bundle, including merge errors, progress steps and preview messages, ready for translation</li>
+      <li>Keyboard: mnemonics for the dialog fields and options; Enter in the merge order resolves a branch with conflicts and otherwise presses Merge</li>
+      <li>Screen readers: names for the branch filter and list, the merge order label belongs to its list, the preview result is announced</li>
+      <li>Animated indicator while the preview checks for conflicts</li>
+      <li><i>Resolve Again</i> and <i>Cancel</i> buttons instead of Yes/No when resolving a branch in advance again</li>
+      <li>Merge window titles say "1 branch" or "N branches" instead of "branch(es)"</li>
+    </ul>
     <h3>0.2.6</h3>
     <ul>
       <li>Cancelling a merge from the progress always finishes the rollback; anything it could not restore is reported</li>

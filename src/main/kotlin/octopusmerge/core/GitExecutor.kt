@@ -59,9 +59,14 @@ interface GitExecutor {
 }
 
 class GitCommandException(val command: List<String>, val result: GitResult) :
-    MergeException(result.errorText.ifEmpty { "git ${command.joinToString(" ")} failed with exit code ${result.exitCode}" })
+    MergeException(MergeProblem.GitFailed(command, result.exitCode, result.errorText))
 
-open class MergeException(message: String) : Exception(message)
+/**
+ * A merge or an undo stopped because of [problem]; [rollbackNotes] list what the rollback could not restore.
+ * The message is for logs only: the IDE shows a localized text built from [problem] and [rollbackNotes].
+ */
+open class MergeException(val problem: MergeProblem, val rollbackNotes: List<RollbackNote> = emptyList()) :
+    Exception((listOf(problem) + rollbackNotes).joinToString("; "))
 
 fun GitExecutor.run(vararg args: String): GitResult = run(args.toList())
 
@@ -129,7 +134,7 @@ class ProcessGitExecutor(
         }
         if (!finished) {
             stop(process, helpers)
-            throw MergeException("git ${args.joinToString(" ")} did not finish in $TIMEOUT_MINUTES minutes.")
+            throw MergeException(MergeProblem.GitTimedOut(args, TIMEOUT_MINUTES))
         }
         // Git has exited: its streams are closed, the helpers drain what is left and end.
         helpers.forEach(Thread::join)

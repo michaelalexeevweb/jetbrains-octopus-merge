@@ -9,7 +9,9 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.text.TextWithMnemonic
 import com.intellij.platform.util.coroutines.childScope
+import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.CheckBoxList
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.DoubleClickListener
@@ -23,10 +25,12 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.CollapsibleRow
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import com.intellij.util.ui.accessibility.AccessibleAnnouncerUtil
 import git4idea.repo.GitRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -44,14 +48,17 @@ import octopusmerge.ide.IdeGitExecutor
 import octopusmerge.ide.OctopusMergeBundle.message
 import octopusmerge.ide.OctopusMergeScope
 import java.awt.BorderLayout
+import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
+import javax.swing.AbstractAction
 import javax.swing.DefaultListModel
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.KeyStroke
+import javax.swing.SwingUtilities
 import javax.swing.event.DocumentEvent
 
 /**
@@ -82,8 +89,12 @@ internal class OctopusMergeDialog(
 
     private val repositoryCombo = SearchComboBox(project, message("dialog.placeholder.repository"))
     private val targetCombo = SearchComboBox(project, message("dialog.placeholder.target"))
-    private val filterField = SearchTextField(false)
-    private val branchList = CheckBoxList<String>()
+    private val filterField = SearchTextField(false).apply {
+        textEditor.accessibleContext.accessibleName = message("dialog.accessible.branch.filter")
+    }
+    private val branchList = CheckBoxList<String>().apply {
+        accessibleContext.accessibleName = message("dialog.accessible.branches")
+    }
     private val orderModel = DefaultListModel<String>()
     private val orderList = JBList(orderModel)
     private val previewLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
@@ -96,14 +107,17 @@ internal class OctopusMergeDialog(
         renderer = textListCellRenderer { it?.let(::strategyText).orEmpty() }
         selectedItem = initialOptions.conflictStrategy
     }
-    private val autoStash = JBCheckBox(message("dialog.option.auto.stash"), initialOptions.autoStash)
-    private val noCommit = JBCheckBox(message("dialog.option.no.commit"), initialOptions.noCommit)
-    private val noVerify = JBCheckBox(message("dialog.option.no.verify"), initialOptions.noVerify)
-    private val appendLog = JBCheckBox(message("dialog.option.log"), initialOptions.appendLog)
-    private val signoff = JBCheckBox(message("dialog.option.signoff"), initialOptions.signoff)
-    private val gpgSign = JBCheckBox(message("dialog.option.gpg.sign"), initialOptions.gpgSign)
-    private val allowUnrelated = JBCheckBox(message("dialog.option.allow.unrelated"), initialOptions.allowUnrelatedHistories)
-    private val deleteMerged = JBCheckBox(message("dialog.option.delete.merged"), initialOptions.deleteMergedBranches)
+    private val autoStash = optionBox("dialog.option.auto.stash", initialOptions.autoStash)
+    private val noCommit = optionBox("dialog.option.no.commit", initialOptions.noCommit)
+    private val noVerify = optionBox("dialog.option.no.verify", initialOptions.noVerify)
+    private val appendLog = optionBox("dialog.option.log", initialOptions.appendLog)
+    private val signoff = optionBox("dialog.option.signoff", initialOptions.signoff)
+    private val gpgSign = optionBox("dialog.option.gpg.sign", initialOptions.gpgSign)
+    private val allowUnrelated = optionBox("dialog.option.allow.unrelated", initialOptions.allowUnrelatedHistories)
+    private val deleteMerged = optionBox("dialog.option.delete.merged", initialOptions.deleteMergedBranches)
+
+    /** The collapsible Options group; its mnemonics expand it while it is collapsed. */
+    private lateinit var optionsGroup: CollapsibleRow
 
     /** Set while widgets are filled from the state, so their listeners do not echo it back as user intents. */
     private var rendering = false
@@ -164,7 +178,7 @@ internal class OctopusMergeDialog(
             .setMoveDownAction { moveSelected(up = false) }
             .createPanel()
         val right = JPanel(BorderLayout(0, JBUI.scale(4))).apply {
-            add(JBLabel(message("dialog.label.merge.order")), BorderLayout.NORTH)
+            add(JBLabel(message("dialog.label.merge.order")).apply { labelFor = orderList }, BorderLayout.NORTH)
             add(orderPanel, BorderLayout.CENTER)
         }
         val splitter = OnePixelSplitter(false, 0.45f).apply {
@@ -173,7 +187,7 @@ internal class OctopusMergeDialog(
             preferredSize = JBUI.size(760, 320)
         }
 
-        return panel {
+        val content = panel {
             if (repositoriesByName.size > 1) {
                 row(message("dialog.label.repository")) { cell(repositoryCombo).align(AlignX.FILL) }
             }
@@ -181,14 +195,55 @@ internal class OctopusMergeDialog(
             row { cell(splitter).align(Align.FILL) }.resizableRow()
             row { cell(previewLabel).align(AlignX.FILL) }
             row(message("dialog.label.message")) { scrollCell(messageArea).align(AlignX.FILL) }
-            collapsibleGroup(message("dialog.group.options")) {
+            optionsGroup = collapsibleGroup(message("dialog.group.options")) {
                 row(message("dialog.label.on.conflict")) { cell(strategyCombo) }
                 for (option in optionBoxes()) {
                     row { cell(option) }
                 }
             }
         }
+        installCollapsedMnemonics(content)
+        return content
     }
+
+    /**
+     * Swing delivers a mnemonic only to a showing component, so while Options is collapsed its mnemonics did nothing.
+     * Here they expand the group first, then toggle the option (or focus On conflict) as the mnemonic would.
+     * The bindings are disabled while the group is expanded and the widgets handle their mnemonics themselves.
+     */
+    private fun installCollapsedMnemonics(root: JComponent) {
+        // The look and feel decides the mnemonic modifiers (Alt, or Ctrl+Option on macOS): reuse the ones it bound.
+        val modifiers = autoStash.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).allKeys().orEmpty()
+            .filter { it.keyCode == autoStash.mnemonic && !it.isOnKeyRelease }
+            .map { it.modifiers }
+            .distinct()
+        val targets = optionBoxes().map { box ->
+            box.mnemonic to {
+                box.doClick(0)
+                focusLater(box)
+            }
+        } +
+            (TextWithMnemonic.parse(message("dialog.label.on.conflict")).mnemonicCode to { focusLater(strategyCombo) })
+        for ((code, perform) in targets) {
+            if (code == 0) continue
+            val key = "OctopusMerge.CollapsedMnemonic.$code"
+            for (mask in modifiers) root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(code, mask), key)
+            root.actionMap.put(
+                key,
+                object : AbstractAction() {
+                    override fun isEnabled(): Boolean = !optionsGroup.expanded
+
+                    override fun actionPerformed(e: ActionEvent) {
+                        optionsGroup.expanded = true
+                        perform()
+                    }
+                },
+            )
+        }
+    }
+
+    /** Focus once the just expanded group is laid out and the component is showing. */
+    private fun focusLater(component: JComponent) = SwingUtilities.invokeLater { component.requestFocusInWindow() }
 
     private fun optionBoxes() = listOf(autoStash, noCommit, appendLog, signoff, gpgSign, noVerify, allowUnrelated, deleteMerged)
 
@@ -227,9 +282,16 @@ internal class OctopusMergeDialog(
                 return true
             }
         }.installOn(orderList)
-        orderList.registerKeyboardAction({
-            resolveSelectedInAdvance()
-        }, KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), JComponent.WHEN_FOCUSED)
+        // Enter resolves a branch with conflicts; on any other row the action is disabled, so Enter reaches the Merge button.
+        orderList.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), RESOLVE_ACTION_KEY)
+        orderList.actionMap.put(
+            RESOLVE_ACTION_KEY,
+            object : AbstractAction() {
+                override fun isEnabled(): Boolean = resolvableSelection() != null
+
+                override fun actionPerformed(e: ActionEvent) = resolveSelectedInAdvance()
+            },
+        )
         messageArea.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) {
                 if (!rendering) messageEdited = messageArea.text.isNotBlank()
@@ -260,9 +322,13 @@ internal class OctopusMergeDialog(
         orderList.selectedValue?.let { controller.move(it, up) }
     }
 
+    /** The selected branch when the preview found conflicts in it to resolve now. */
+    private fun resolvableSelection(): BranchAnalysis? =
+        orderList.selectedValue?.let(analysis::get)?.takeIf { it.state == BranchState.CONFLICT || it.state == BranchState.RESOLVED }
+
     private fun resolveSelectedInAdvance() {
-        val branch = orderList.selectedValue ?: return
-        val info = analysis[branch]?.takeIf { it.state == BranchState.CONFLICT || it.state == BranchState.RESOLVED } ?: return
+        val info = resolvableSelection() ?: return
+        val branch = info.branch
         val state = controller.state.value
         val target = state.target ?: return
         val position = state.order.indexOf(branch) + 1
@@ -325,7 +391,7 @@ internal class OctopusMergeDialog(
             }
 
             PreviewState.Checking -> {
-                previewLabel.icon = AllIcons.Process.Step_1
+                previewLabel.icon = AnimatedIcon.Default.INSTANCE
                 previewLabel.text = message("preview.checking")
             }
 
@@ -337,17 +403,36 @@ internal class OctopusMergeDialog(
             is PreviewState.Failed -> {
                 previewLabel.icon = AllIcons.General.Error
                 previewLabel.text = message("preview.failed", preview.message)
+                announce(previewLabel.text)
             }
 
             is PreviewState.Ready -> {
                 previewLabel.icon = PreviewText.summaryIcon(preview.branches.values)
                 previewLabel.text = PreviewText.summary(preview.branches.values)
+                announce(previewLabel.text)
             }
         }
         orderList.repaint()
     }
 
+    /** The preview result appears away from the focused control: tell screen reader users. */
+    private fun announce(text: String) {
+        if (AccessibleAnnouncerUtil.isAnnouncingAvailable()) AccessibleAnnouncerUtil.announce(previewLabel, text, false)
+    }
+
     private companion object {
+        const val RESOLVE_ACTION_KEY = "OctopusMerge.ResolveInAdvance"
+
+        /** A checkbox whose bundle text marks its mnemonic with `&`. */
+        fun optionBox(key: String, selected: Boolean) = JBCheckBox(null, selected).apply {
+            val text = TextWithMnemonic.parse(message(key))
+            this.text = text.text
+            if (text.hasMnemonic()) {
+                mnemonic = text.mnemonicCode
+                displayedMnemonicIndex = text.mnemonicIndex
+            }
+        }
+
         fun choiceOf(name: String, repository: GitRepository) = RepositoryChoice(
             name = name,
             localBranches = repository.branches.localBranches.map { it.name },

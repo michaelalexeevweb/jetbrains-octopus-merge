@@ -3,6 +3,7 @@ package octopusmerge.core
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -118,7 +119,7 @@ class MergeAnalyzerTest {
 
         val refused = analyzer.analyze("main", listOf("island")).single()
         assertEquals(BranchState.ERROR, refused.state)
-        assertTrue(refused.error!!.contains("unrelated", ignoreCase = true))
+        assertTrue(assertIs<AnalysisError.MergeTreeFailed>(refused.error).gitOutput.contains("unrelated", ignoreCase = true))
 
         assertEquals(
             BranchState.CLEAN,

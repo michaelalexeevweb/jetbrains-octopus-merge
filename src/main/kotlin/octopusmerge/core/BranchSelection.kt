@@ -30,8 +30,6 @@ class BranchSelection(localBranches: Collection<String>, remoteBranches: Collect
             ordered.remove(value)
         }
 
-    fun isSelected(branch: String): Boolean = branch in ordered
-
     /** Checks or unchecks a branch. A newly checked branch goes to the end of the merge order. */
     fun setSelected(branch: String, selected: Boolean) {
         if (selected) {
@@ -42,8 +40,6 @@ class BranchSelection(localBranches: Collection<String>, remoteBranches: Collect
     }
 
     fun selectAll(branches: Collection<String>) = branches.forEach { setSelected(it, true) }
-
-    fun clear() = ordered.clear()
 
     fun moveUp(branch: String) = move(branch, -1)
 

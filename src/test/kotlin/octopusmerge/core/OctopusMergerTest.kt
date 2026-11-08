@@ -6,6 +6,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -176,7 +177,7 @@ class OctopusMergerTest {
 
         val e = assertFailsWith<MergeException> { merger().merge(MergeRequest("main", listOf("b1", "missing"))) }
 
-        assertContains(e.message!!, "missing")
+        assertEquals(MergeProblem.UnknownRevision("missing"), e.problem)
         assertEquals(start, repo.head())
     }
 
@@ -200,7 +201,7 @@ class OctopusMergerTest {
 
         val e = assertFailsWith<MergeException> { merger().merge(MergeRequest("main", listOf("b1", "b2"))) }
 
-        assertContains(e.message!!, "uncommitted")
+        assertEquals(MergeProblem.UncommittedChanges, e.problem)
         assertEquals(start, repo.head())
         assertEquals("dirty\n", repo.read("file.txt"))
     }
@@ -213,7 +214,7 @@ class OctopusMergerTest {
 
         val e = assertFailsWith<MergeException> { merger().merge(MergeRequest("main", listOf("b1", "b2"))) }
 
-        assertContains(e.message!!, "merge is in progress")
+        assertEquals(MergeProblem.OperationInProgress(GitOperation.MERGE), e.problem)
     }
 
     @Test
@@ -295,7 +296,7 @@ class OctopusMergerTest {
         var resolved = false
         val progress = object : MergeProgress {
             override fun checkCanceled() {
-                if (resolved) throw MergeCancelledException("cancelled")
+                if (resolved) throw MergeCancelledException(MergeProblem.Cancelled)
             }
         }
 
@@ -386,7 +387,7 @@ class OctopusMergerTest {
 
         val e = assertFailsWith<MergeException> { merger().merge(MergeRequest("main", listOf("b1", "b2"))) }
 
-        assertContains(e.message!!, "generated.txt")
+        assertContains(assertIs<MergeProblem.StepFailed>(e.problem).gitOutput, "generated.txt")
         assertEquals(start, repo.head())
         assertEquals("untracked local file\n", repo.read("generated.txt"))
     }
@@ -533,7 +534,9 @@ class OctopusMergerTest {
 
         val e = assertFailsWith<MergeException> { merger().merge(MergeRequest("main", listOf("b1", "b2"))) }
 
-        assertContains(e.message!!, "rejected by policy")
+        val problem = assertIs<MergeProblem.HookFailed>(e.problem)
+        assertEquals("commit-msg", problem.hook)
+        assertContains(problem.gitOutput, "rejected by policy")
         assertEquals(start, repo.head())
         assertClean()
     }
@@ -558,7 +561,9 @@ class OctopusMergerTest {
             merger(resolvingTo("r\n")).merge(MergeRequest("main", listOf("b1", "b2", "b3")))
         }
 
-        assertContains(e.message!!, "not on fridays")
+        val problem = assertIs<MergeProblem.HookFailed>(e.problem)
+        assertEquals("pre-merge-commit", problem.hook)
+        assertContains(problem.gitOutput, "not on fridays")
         assertEquals(start, repo.head())
         assertClean()
     }
@@ -728,17 +733,23 @@ class OctopusMergerTest {
     @Test
     fun `reports progress steps`() {
         conflictingBranches()
-        val steps = mutableListOf<String>()
+        val steps = mutableListOf<MergeStep>()
         val progress = object : MergeProgress {
-            override fun step(text: String) {
-                steps += text
+            override fun step(step: MergeStep) {
+                steps += step
             }
         }
 
         merger(resolvingTo("r\n"), progress).merge(MergeRequest("main", listOf("b1", "b2", "b3")))
 
         assertEquals(
-            listOf("Merging b1, b2, b3", "Merging b1 (1/3)", "Merging b2 (2/3)", "Merging b3 (3/3)", "Creating merge commit"),
+            listOf(
+                MergeStep.MergingAll(listOf("b1", "b2", "b3")),
+                MergeStep.MergingOne("b1", 1, 3),
+                MergeStep.MergingOne("b2", 2, 3),
+                MergeStep.MergingOne("b3", 3, 3),
+                MergeStep.CreatingCommit,
+            ),
             steps,
         )
     }

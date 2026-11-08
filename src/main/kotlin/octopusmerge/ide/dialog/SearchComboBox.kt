@@ -22,6 +22,7 @@ import com.intellij.ui.LanguageTextField
 import com.intellij.ui.MutableCollectionComboBoxModel
 import com.intellij.ui.TextFieldWithAutoCompletion
 import com.intellij.ui.TextFieldWithAutoCompletionListProvider
+import com.intellij.ui.dsl.builder.DslComponentProperty
 import octopusmerge.core.NameMatcher
 import javax.swing.JLabel
 
@@ -62,6 +63,8 @@ internal class SearchComboBox(private val project: Project, placeholder: String)
         }
         // The editor is assigned after the UI delegate was installed; reinstall the UI so it picks the editor up.
         updateUI()
+        // The row label (and its mnemonic) points at the text field users type in, not at the combo around it.
+        putClientProperty(DslComponentProperty.INTERACTIVE_COMPONENT, editableComponent)
     }
 
     /** Typed text as is. */

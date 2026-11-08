@@ -24,7 +24,7 @@ data class BranchAnalysis(
     val commits: Int = 0,
     /** Conflicted files with their versions; filled for [BranchState.CONFLICT] and [BranchState.RESOLVED]. */
     val conflicts: List<FileConflict> = emptyList(),
-    val error: String? = null,
+    val error: AnalysisError? = null,
     /** How many of [conflicts] have a resolution made in the preview. */
     val resolvedCount: Int = 0,
 ) {
@@ -55,8 +55,8 @@ class MergeAnalyzer(private val git: GitExecutor) {
         options: MergeOptions = MergeOptions(),
         resolutions: Resolutions = Resolutions(),
     ): List<BranchAnalysis> {
-        val targetHash =
-            repo.resolveCommit(target) ?: return branches.map { BranchAnalysis(it, BranchState.ERROR, error = "Unknown target: $target") }
+        val targetHash = repo.resolveCommit(target)
+            ?: return branches.map { BranchAnalysis(it, BranchState.ERROR, error = AnalysisError.UnknownTarget(target)) }
         val hashes = branches.associateWith { repo.resolveCommit(it) }
         val (toMerge, _) = repo.reduceHeads(targetHash, hashes.mapNotNull { (name, hash) -> hash?.let { name to it } })
         val mergedNames = toMerge.map { it.first }.toSet()
@@ -64,7 +64,7 @@ class MergeAnalyzer(private val git: GitExecutor) {
 
         return branches.map { branch ->
             val hash = hashes[branch]
-                ?: return@map BranchAnalysis(branch, BranchState.ERROR, error = "Unknown branch or revision")
+                ?: return@map BranchAnalysis(branch, BranchState.ERROR, error = AnalysisError.UnknownRevision)
             if (branch !in mergedNames) {
                 return@map BranchAnalysis(branch, BranchState.ALREADY_MERGED)
             }
@@ -85,7 +85,7 @@ class MergeAnalyzer(private val git: GitExecutor) {
             val records = result.records
             val tree = records.firstOrNull()?.trim()
             if (result.exitCode !in 0..1 || tree.isNullOrEmpty()) {
-                return@map BranchAnalysis(branch, BranchState.ERROR, commits, error = result.errorText.ifEmpty { "git merge-tree failed" })
+                return@map BranchAnalysis(branch, BranchState.ERROR, commits, error = AnalysisError.MergeTreeFailed(result.errorText))
             }
 
             val conflicts = if (result.exitCode == 1) FileConflict.parse(records.drop(1)) else emptyList()

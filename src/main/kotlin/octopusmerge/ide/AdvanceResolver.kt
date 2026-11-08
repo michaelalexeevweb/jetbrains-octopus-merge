@@ -1,5 +1,6 @@
 package octopusmerge.ide
 
+import com.intellij.CommonBundle
 import com.intellij.diff.DiffManager
 import com.intellij.diff.DiffRequestFactory
 import com.intellij.diff.merge.MergeResult
@@ -8,6 +9,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.util.text.StringUtil
@@ -37,13 +39,11 @@ internal class AdvanceResolver(private val project: Project, private val reposit
         var changed = false
 
         if (info.state == BranchState.RESOLVED) {
-            val again = Messages.showYesNoDialog(
-                parent,
-                message("advance.resolve.again", info.branch),
-                message("advance.title"),
-                Messages.getQuestionIcon(),
-            )
-            if (again != Messages.YES) return false
+            val again = MessageDialogBuilder.yesNo(message("dialog.title"), message("advance.resolve.again", info.branch))
+                .yesText(message("advance.button.resolve.again"))
+                .noText(CommonBundle.getCancelButtonText())
+                .ask(parent)
+            if (!again) return false
             content.forEach(resolutions::remove)
             changed = true
         }
@@ -51,7 +51,7 @@ internal class AdvanceResolver(private val project: Project, private val reposit
         val todo = content.filterNot(resolutions::has)
         if (todo.isEmpty()) {
             if (structural.isNotEmpty()) {
-                Messages.showInfoMessage(parent, structuralNote(structural), message("advance.title"))
+                Messages.showInfoMessage(parent, structuralNote(structural), message("dialog.title"))
             }
             return changed
         }
@@ -70,7 +70,7 @@ internal class AdvanceResolver(private val project: Project, private val reposit
             // The user cancelled loading: nothing to resolve.
             return changed
         } catch (e: MergeException) {
-            Messages.showErrorDialog(parent, message("advance.loading.failed", e.message.orEmpty()), message("advance.title"))
+            Messages.showErrorDialog(parent, message("advance.loading.failed", CoreTexts.error(e)), message("dialog.title"))
             return changed
         }
 
@@ -89,7 +89,7 @@ internal class AdvanceResolver(private val project: Project, private val reposit
             if (skippedBinary.isNotEmpty()) add(message("advance.binary.skipped", skippedBinary.joinToString()))
             if (structural.isNotEmpty()) add(structuralNote(structural))
         }
-        if (notes.isNotEmpty()) Messages.showInfoMessage(parent, notes.joinToString("\n\n"), message("advance.title"))
+        if (notes.isNotEmpty()) Messages.showInfoMessage(parent, notes.joinToString("\n\n"), message("dialog.title"))
         return changed
     }
 
@@ -100,14 +100,6 @@ internal class AdvanceResolver(private val project: Project, private val reposit
         val texts = listOf(ours, String(file.base ?: ByteArray(0), Charsets.UTF_8), String(file.theirs, Charsets.UTF_8))
             .map { StringUtil.convertLineSeparators(it) }
         val document = EditorFactory.getInstance().createDocument(texts[0])
-        val leftTitle = if (position <=
-            1
-        ) {
-            message("advance.left.target", target)
-        } else {
-            message("advance.left.merged.before", target, position - 1)
-        }
-
         var outcome = MergeResult.CANCEL
         val request = DiffRequestFactory.getInstance().createMergeRequest(
             project,
@@ -115,7 +107,7 @@ internal class AdvanceResolver(private val project: Project, private val reposit
             document,
             texts,
             message("advance.window.title", file.conflict.path, branch, target),
-            listOf(leftTitle, message("advance.base"), message("advance.right", branch)),
+            listOf(MergePanelTitles.left(target, position), message("advance.base"), MergePanelTitles.right(branch)),
             Consumer { outcome = it },
         )
         DiffManager.getInstance().showMerge(project, request)

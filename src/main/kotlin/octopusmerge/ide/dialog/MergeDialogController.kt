@@ -1,7 +1,7 @@
 package octopusmerge.ide.dialog
 
+import com.intellij.diagnostic.rethrowControlFlowException
 import com.intellij.openapi.diagnostic.logger
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -14,9 +14,11 @@ import kotlinx.coroutines.runInterruptible
 import octopusmerge.core.BranchAnalysis
 import octopusmerge.core.BranchSelection
 import octopusmerge.core.MergeAnalyzer
+import octopusmerge.core.MergeException
 import octopusmerge.core.MergeOptions
 import octopusmerge.core.Resolutions
 import octopusmerge.core.SelectionProblem
+import octopusmerge.ide.CoreTexts
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -172,14 +174,13 @@ internal class MergeDialogController(
             } else {
                 try {
                     PreviewState.Ready(analyzer.analyze(target, request.branches, request.options, resolutions).associateBy { it.branch })
-                } catch (e: CancellationException) {
-                    throw e
                 } catch (e: InterruptedException) {
                     // A newer request cancelled this one: runInterruptible interrupts git and turns this into cancellation.
                     throw e
                 } catch (e: Exception) {
+                    rethrowControlFlowException(e)
                     LOG.info("Conflict preview failed", e)
-                    PreviewState.Failed(e.message.orEmpty())
+                    PreviewState.Failed(if (e is MergeException) CoreTexts.error(e) else e.message.orEmpty())
                 }
             }
         }

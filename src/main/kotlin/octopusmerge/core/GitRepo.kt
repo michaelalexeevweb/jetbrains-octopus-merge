@@ -8,7 +8,7 @@ class GitRepo(val git: GitExecutor) {
     fun resolveCommit(revision: String): String? =
         git.run("rev-parse", "--verify", "--quiet", "$revision^{commit}").takeIf { it.success }?.output
 
-    fun requireCommit(revision: String): String = resolveCommit(revision) ?: throw MergeException("Unknown branch or revision: $revision")
+    fun requireCommit(revision: String): String = resolveCommit(revision) ?: throw MergeException(MergeProblem.UnknownRevision(revision))
 
     fun head(): String = requireCommit("HEAD")
 
@@ -79,20 +79,20 @@ class GitRepo(val git: GitExecutor) {
     }
 
     /** Name of a merge, rebase, cherry-pick, revert or bisect in progress, or null. */
-    fun operationInProgress(): String? = mapOf(
-        "MERGE_HEAD" to "merge",
-        "rebase-merge" to "rebase",
-        "rebase-apply" to "rebase",
-        "CHERRY_PICK_HEAD" to "cherry-pick",
-        "REVERT_HEAD" to "revert",
-        "BISECT_LOG" to "bisect",
+    fun operationInProgress(): GitOperation? = mapOf(
+        "MERGE_HEAD" to GitOperation.MERGE,
+        "rebase-merge" to GitOperation.REBASE,
+        "rebase-apply" to GitOperation.REBASE,
+        "CHERRY_PICK_HEAD" to GitOperation.CHERRY_PICK,
+        "REVERT_HEAD" to GitOperation.REVERT,
+        "BISECT_LOG" to GitOperation.BISECT,
     ).entries.firstOrNull { gitPath(it.key).exists() }?.value
 
     /** `Name <email>` of the committer, for the Signed-off-by trailer. */
     fun committerIdent(): String {
         val name = git.run("config", "user.name").output
         val email = git.run("config", "user.email").output
-        if (name.isEmpty() || email.isEmpty()) throw MergeException("Set user.name and user.email to sign off the merge.")
+        if (name.isEmpty() || email.isEmpty()) throw MergeException(MergeProblem.MissingIdentity)
         return "$name <$email>"
     }
 

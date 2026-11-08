@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "io.github.michaelalexeevweb"
-version = "0.2.6"
+version = "0.3.0"
 
 /**
  * The IDE to build, test and run against: the local install from `localIdePath` when it exists

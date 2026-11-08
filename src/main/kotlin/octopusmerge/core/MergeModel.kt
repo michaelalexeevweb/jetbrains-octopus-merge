@@ -88,7 +88,7 @@ fun interface ConflictResolver {
 }
 
 interface MergeProgress {
-    fun step(text: String) {}
+    fun step(step: MergeStep) {}
 
     /** Throws to cancel; the merge is rolled back. */
     fun checkCanceled() {}

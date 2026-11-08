@@ -21,7 +21,9 @@ import octopusmerge.core.ConflictStep
 import octopusmerge.core.GitExecutor
 import octopusmerge.core.GitResult
 import octopusmerge.core.MergeException
+import octopusmerge.core.MergeProblem
 import octopusmerge.core.MergeProgress
+import octopusmerge.core.MergeStep
 import octopusmerge.core.ProcessGitExecutor
 import octopusmerge.ide.OctopusMergeBundle.message
 import java.io.File
@@ -54,7 +56,7 @@ internal class IdeGitExecutor(
      */
     override fun runRaw(args: List<String>, input: ByteArray?, env: Map<String, String>): GitResult {
         val executable = GitExecutableManager.getInstance().getExecutable(project)
-        if (!executable.isLocal) throw MergeException(message("git.not.local", executable.exePath))
+        if (!executable.isLocal) throw MergeException(MergeProblem.ExecutableNotLocal(executable.exePath))
         val result = ProcessGitExecutor(root, executable.exePath, executable.getLocaleEnv()).runRaw(args, input, env)
         LOG.debug { "git ${args.joinToString(" ")} (raw) -> ${result.exitCode}" }
         return result
@@ -92,14 +94,9 @@ internal class IdeConflictResolver(private val project: Project, private val roo
     private class Customizer(private val step: ConflictStep) : MergeDialogCustomizer() {
         override fun getMultipleFileDialogTitle(): String = message("conflicts.dialog.title", step.branch)
 
-        override fun getLeftPanelTitle(file: VirtualFile): String = if (step.index == 1) {
-            message("conflicts.left.target", step.target)
-        } else {
-            message("conflicts.left.merged", step.target, step.index - 1)
-        }
+        override fun getLeftPanelTitle(file: VirtualFile): String = MergePanelTitles.left(step.target, step.index)
 
-        override fun getRightPanelTitle(file: VirtualFile, revisionNumber: VcsRevisionNumber?): String =
-            message("conflicts.right", step.branch)
+        override fun getRightPanelTitle(file: VirtualFile, revisionNumber: VcsRevisionNumber?): String = MergePanelTitles.right(step.branch)
     }
 }
 
@@ -109,9 +106,9 @@ internal class IdeMergeProgress(
     private val repository: GitRepository,
     private val indicator: ProgressIndicator,
 ) : MergeProgress {
-    override fun step(text: String) {
-        LOG.info("Octopus merge step: $text")
-        indicator.text = text
+    override fun step(step: MergeStep) {
+        LOG.info("Octopus merge step: $step")
+        indicator.text = CoreTexts.step(step)
     }
 
     override fun checkCanceled() = indicator.checkCanceled()
